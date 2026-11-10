@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -8,7 +9,13 @@ const io = new Server(server);
 
 const port = process.env.PORT || 3000;
 
+// Serve static files (like three.min.js)
 app.use(express.static(__dirname));
+
+// EXPLICITLY serve index.html when someone visits the homepage
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const players = {};
 
@@ -18,7 +25,6 @@ io.on('connection', (socket) => {
     const names = ["Speedster", "Blocky", "Miner", "Creeper", "Racer", "Steve", "Alex", "Pixel", "Diamond", "Ender"];
     const randomName = names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 100);
 
-    // SPAWN EVERYONE AT THE CENTER
     players[socket.id] = {
         id: socket.id,
         name: randomName,
@@ -48,6 +54,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(port, () => {
-    console.log(`Multiplayer Server running at http://localhost:${port}`);
+    console.log(`Server running on port ${port}`);
 });
-force update
