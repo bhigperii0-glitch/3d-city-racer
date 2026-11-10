@@ -9,10 +9,10 @@ const io = new Server(server);
 
 const port = process.env.PORT || 3000;
 
-// Serve static files (like three.min.js)
+// Serve static files
 app.use(express.static(__dirname));
 
-// EXPLICITLY serve index.html when someone visits the homepage
+// FIX: Explicitly serve index.html when visiting the homepage
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
