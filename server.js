@@ -2,41 +2,21 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const path = require('path');
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
 const port = process.env.PORT || 3000;
-
-// Serve static files
 app.use(express.static(__dirname));
-
-// FIX: Explicitly serve index.html when visiting the homepage
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
-
 const players = {};
-
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
-
     const names = ["Speedster", "Blocky", "Miner", "Creeper", "Racer", "Steve", "Alex", "Pixel", "Diamond", "Ender"];
     const randomName = names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 100);
-
-    players[socket.id] = {
-        id: socket.id,
-        name: randomName,
-        x: 0, 
-        z: 0,
-        angle: 0,
-        color: Math.floor(Math.random() * 0xffffff)
-    };
-
+    players[socket.id] = { id: socket.id, name: randomName, x: 0, z: 0, angle: 0, color: Math.floor(Math.random() * 0xffffff) };
     socket.emit('currentPlayers', players);
     socket.broadcast.emit('newPlayer', players[socket.id]);
-
     socket.on('playerMovement', (movementData) => {
         if(players[socket.id]) {
             players[socket.id].x = movementData.x;
@@ -45,14 +25,6 @@ io.on('connection', (socket) => {
             socket.broadcast.emit('playerMoved', players[socket.id]);
         }
     });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        delete players[socket.id];
-        io.emit('playerDisconnected', socket.id);
-    });
+    socket.on('disconnect', () => { delete players[socket.id]; io.emit('playerDisconnected', socket.id); });
 });
-
-server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
+server.listen(port, () => { console.log(`Server running on port ${port}`); });

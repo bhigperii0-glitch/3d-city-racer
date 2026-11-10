@@ -1,16 +1,12 @@
 {
-  "name": "3d-sim",
+  "name": "3d-city-racer",
   "version": "1.0.0",
-  "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
-  "keywords": [],
-  "type": "commonjs",
   "dependencies": {
-    "express": "^5.3.0",
-    "socket.io": "^4.8.4"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
   }
 }
