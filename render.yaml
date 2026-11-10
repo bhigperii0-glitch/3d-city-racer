@@ -1,7 +1,7 @@
 services:
   - type: web
-    name: 3d-city-racer
+    name: my-3d-city-v2
     env: node
     plan: free
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server.js
