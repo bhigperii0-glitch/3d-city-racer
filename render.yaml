@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: 3d-city-racer
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
