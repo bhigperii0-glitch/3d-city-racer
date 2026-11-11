@@ -8,18 +8,13 @@
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin: 0; overflow: hidden; background-color: #78A7FF; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
         
-        /* UI */
         #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
         #ui h3 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 2px 2px 0 #000; }
         .money { color: #4caf50; font-size: 14px; }
         #missionText { color: #ff5252; font-weight: bold; margin-top: 10px; font-size: 10px; line-height: 1.5;}
-        
         #resetBtn { background: #333; color: #ff5252; border: 2px solid #555; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 5px; margin-top: 10px; cursor: pointer; display: block; width: 100%;}
-
-        /* Crosshair */
         #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 30px; font-weight: bold; pointer-events: none; z-index: 5; opacity: 0.7; text-shadow: 0 0 5px black;}
 
-        /* Controls */
         #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10;}
         .d-pad { display: grid; grid-template-columns: 60px 60px 60px; grid-template-rows: 60px 60px; gap: 5px; pointer-events: auto; }
         .btn { background: rgba(0,0,0,0.6); color: white; border: 4px solid #555; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 20px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.2);}
@@ -68,13 +63,11 @@
         let targetNPC, houseDoor;
         let keys = { forward: false, backward: false, left: false, right: false };
         
-        // Physics
         let velocityY = 0;
         let isGrounded = false;
         const gravity = -35;
         const jumpForce = 14;
         
-        // World Generation
         const blockSize = 4;
         const CHUNK_SIZE = 6; 
         const RENDER_DISTANCE = 3; 
@@ -82,8 +75,6 @@
         let allBlocks = []; 
 
         let missionComplete = false;
-
-        // --- SAVE SYSTEM ---
         let minedBlocks = new Set(JSON.parse(localStorage.getItem('minedBlocks')) || []);
 
         function resetWorld() {
@@ -91,7 +82,6 @@
             location.reload();
         }
 
-        // --- TEXTURES ---
         function createMCTexture(baseColor, noiseColor) {
             const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d'); 
@@ -103,26 +93,16 @@
             return tex;
         }
 
-        // --- REALISTIC FACE GENERATOR ---
         function createFaceTexture(skinColor, hairColor) {
             const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d'); 
-            // Skin
             ctx.fillStyle = skinColor; ctx.fillRect(0, 0, 64, 64);
-            // Hair
-            ctx.fillStyle = hairColor; ctx.fillRect(0, 0, 64, 20); 
-            ctx.fillRect(0, 20, 12, 15); ctx.fillRect(52, 20, 12, 15); 
-            // Eyes
+            ctx.fillStyle = hairColor; ctx.fillRect(0, 0, 64, 20); ctx.fillRect(0, 20, 12, 15); ctx.fillRect(52, 20, 12, 15); 
             ctx.fillStyle = '#ffffff'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12);
             ctx.fillStyle = '#000000'; ctx.fillRect(18, 32, 4, 4); ctx.fillRect(42, 32, 4, 4);
-            // Nose
             ctx.fillStyle = '#d7a391'; ctx.fillRect(30, 36, 4, 6);
-            // Mouth
             ctx.fillStyle = '#a33'; ctx.fillRect(24, 48, 16, 4);
-            
-            const tex = new THREE.CanvasTexture(canvas); 
-            tex.magFilter = THREE.NearestFilter; 
-            return tex;
+            const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; return tex;
         }
 
         const texGrassTop = createMCTexture('#5A9E3F', '#4B8832');
@@ -130,9 +110,8 @@
         const texStone = createMCTexture('#888888', '#666666');
         const texWood = createMCTexture('#5D4037', '#3E2723');
         const texLeaves = createMCTexture('#4CAF50', '#2E7D32');
-        
-        const faceTexSteve = createFaceTexture('#ffccbc', '#3E2723'); // Light skin, brown hair
-        const faceTexTarget = createFaceTexture('#8d5524', '#000000'); // Dark skin, black hair
+        const faceTexSteve = createFaceTexture('#ffccbc', '#3E2723');
+        const faceTexTarget = createFaceTexture('#8d5524', '#000000');
 
         window.onload = function() {
             scene = new THREE.Scene();
@@ -140,6 +119,11 @@
             scene.fog = new THREE.Fog(0x78A7FF, 60, 150); 
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            // --- CAMERA FIX: Start camera high up looking at the player spawn ---
+            camera.position.set(0, 80, 60);
+            camera.lookAt(0, 60, 20);
+
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
@@ -155,11 +139,10 @@
             dirLight.shadow.mapSize.width = 1024;
             scene.add(dirLight);
 
-            // Clouds
             const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
             for(let i=0; i<30; i++) {
                 const cloud = new THREE.Mesh(new THREE.BoxGeometry(20 + Math.random()*20, 4, 20 + Math.random()*20), cloudMat);
-                cloud.position.set(Math.random()*400 - 200, 60 + Math.random()*20, Math.random()*400 - 200);
+                cloud.position.set(Math.random()*400 - 200, 80 + Math.random()*20, Math.random()*400 - 200);
                 scene.add(cloud);
             }
 
@@ -176,7 +159,6 @@
             animate();
         };
 
-        // --- INFINITE CHUNK GENERATION ---
         function generateChunk(cx, cz) {
             const chunkGroup = new THREE.Group();
             const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
@@ -185,27 +167,20 @@
                 for (let z = 0; z < CHUNK_SIZE; z++) {
                     const worldX = cx * CHUNK_SIZE + x;
                     const worldZ = cz * CHUNK_SIZE + z;
-                    let height = Math.floor(Math.sin(worldX / 4) * 2 + Math.cos(worldZ / 4) * 2) + 2;
+                    // Slightly flatter terrain
+                    let height = Math.floor(Math.sin(worldX / 5) * 1.5 + Math.cos(worldZ / 5) * 1.5) + 2;
                     
                     for (let y = height; y >= height - 1; y--) {
                         const bx = worldX * blockSize;
                         const by = y * blockSize;
                         const bz = worldZ * blockSize;
                         
-                        // SAVE SYSTEM CHECK: If this block was mined, skip generating it
                         const blockId = `${bx.toFixed(1)}_${by.toFixed(1)}_${bz.toFixed(1)}`;
                         if (minedBlocks.has(blockId)) continue;
 
                         let mat;
                         if (y === height) {
-                            mat = [
-                                new THREE.MeshStandardMaterial({ map: texGrassSide }),
-                                new THREE.MeshStandardMaterial({ map: texGrassSide }),
-                                new THREE.MeshStandardMaterial({ map: texGrassTop }),
-                                new THREE.MeshStandardMaterial({ map: texGrassSide }),
-                                new THREE.MeshStandardMaterial({ map: texGrassSide }),
-                                new THREE.MeshStandardMaterial({ map: texGrassSide })
-                            ];
+                            mat = [ new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassTop }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }) ];
                         } else {
                             mat = new THREE.MeshStandardMaterial({ map: texStone });
                         }
@@ -248,7 +223,6 @@
                 if (Math.abs(cx - currentCX) > RENDER_DISTANCE + 1 || Math.abs(cz - currentCZ) > RENDER_DISTANCE + 1) {
                     scene.remove(activeChunks[key]);
                     delete activeChunks[key];
-                    // Remove collision for unloaded chunks
                     allBlocks = allBlocks.filter(b => Math.abs(b.x/ (CHUNK_SIZE*blockSize) - currentCX) <= RENDER_DISTANCE + 1);
                 }
             }
@@ -274,53 +248,44 @@
             houseDoor.position.set(x, blockSize*1, z + blockSize*2); scene.add(houseDoor);
         }
 
-        // --- REALISTIC HUMANOID BUILDER ---
         function buildHumanoid(shirtColor, faceTexture, isPlayer) {
             const group = new THREE.Group();
             const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccbc });
             const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor });
             const pantsMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
 
-            // Torso
             const body = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.6, blockSize*0.8, blockSize*0.4), shirtMat);
             body.position.y = blockSize*0.5; body.castShadow = true; group.add(body);
             
-            // Head (with Face)
             const headMats = [
-                new THREE.MeshStandardMaterial({ color: 0xffccbc }), // Right
-                new THREE.MeshStandardMaterial({ color: 0xffccbc }), // Left
-                new THREE.MeshStandardMaterial({ color: 0xffccbc }), // Top
-                new THREE.MeshStandardMaterial({ color: 0xffccbc }), // Bottom
-                new THREE.MeshStandardMaterial({ map: faceTexture }), // Front (Face)
-                new THREE.MeshStandardMaterial({ color: 0x3E2723 })  // Back (Hair)
+                new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }),
+                new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }),
+                new THREE.MeshStandardMaterial({ map: faceTexture }), new THREE.MeshStandardMaterial({ color: 0x3E2723 })
             ];
             const head = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.5, blockSize*0.5, blockSize*0.5), headMats);
             head.position.y = blockSize*1.15; head.castShadow = true; group.add(head);
 
-            // Arms
             const armL = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.25, blockSize*0.8, blockSize*0.25), skinMat);
             armL.position.set(-blockSize*0.45, blockSize*0.5, 0); group.add(armL);
             const armR = armL.clone(); armR.position.x = blockSize*0.45; group.add(armR);
 
-            // Legs
             const legL = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.3, blockSize*0.8, blockSize*0.3), pantsMat);
             legL.position.set(-blockSize*0.2, -blockSize*0.4, 0); group.add(legL);
             const legR = legL.clone(); legR.position.x = blockSize*0.2; group.add(legR);
 
-            // Save limbs for animation
             group.userData = { armL, armR, legL, legR };
-            
             return group;
         }
 
         function createPlayer() {
-            player = buildHumanoid(0x1976d2, faceTexSteve, true); // Blue shirt, Steve face
-            player.position.set(0, 30, 20); 
+            player = buildHumanoid(0x1976d2, faceTexSteve, true); 
+            // --- PLAYER SPAWN FIX: Start really high up in the sky ---
+            player.position.set(0, 60, 20); 
             scene.add(player);
         }
 
         function createTarget(x, z, yHeight) {
-            targetNPC = buildHumanoid(0xd32f2f, faceTexTarget, false); // Red shirt, Target face
+            targetNPC = buildHumanoid(0xd32f2f, faceTexTarget, false); 
             targetNPC.position.set(x * blockSize, yHeight * blockSize + 1, z * blockSize); 
             scene.add(targetNPC);
         }
@@ -328,7 +293,6 @@
         window.setMove = function(dir, isPressed) { keys[dir] = isPressed; }
         window.jump = function() { if(isGrounded) { velocityY = jumpForce; isGrounded = false; } }
 
-        // --- MINING & SAVE SYSTEM ---
         window.mineBlock = function() {
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); 
             const intersects = raycaster.intersectObjects(allBlocks.map(b => b.mesh));
@@ -339,8 +303,8 @@
                 
                 if(blockData) {
                     scene.remove(hitMesh);
-                    minedBlocks.add(blockData.id); // Add to save set
-                    localStorage.setItem('minedBlocks', JSON.stringify([...minedBlocks])); // Save to browser
+                    minedBlocks.add(blockData.id); 
+                    localStorage.setItem('minedBlocks', JSON.stringify([...minedBlocks])); 
                     allBlocks = allBlocks.filter(b => b.mesh !== hitMesh);
                 }
             }
@@ -387,16 +351,22 @@
             velocityY += gravity * delta;
             player.position.y += velocityY * delta;
 
+            // --- BULLETPROOF COLLISION LOGIC ---
             let floorY = -20; 
             allBlocks.forEach(block => {
-                if (Math.abs(player.position.x - block.x) < blockSize/1.5 && Math.abs(player.position.z - block.z) < blockSize/1.5) {
-                    if (block.y > floorY && player.position.y >= block.y - 2) floorY = block.y;
+                // If player is within the X/Z bounds of this block
+                if (Math.abs(player.position.x - block.x) < blockSize/1.2 && Math.abs(player.position.z - block.z) < blockSize/1.2) {
+                    // Find the highest block directly under the player
+                    if (block.y > floorY) floorY = block.y;
                 }
             });
 
             const playerHeightOffset = blockSize * 1.0; 
-            if (player.position.y <= floorY + blockSize/2 + playerHeightOffset) {
-                player.position.y = floorY + blockSize/2 + playerHeightOffset;
+            const targetGroundY = floorY + blockSize/2 + playerHeightOffset;
+
+            // If the player falls below the highest block, snap them to the top of it
+            if (player.position.y <= targetGroundY) {
+                player.position.y = targetGroundY;
                 velocityY = 0;
                 isGrounded = true;
             } else {
@@ -407,7 +377,6 @@
             player.position.z += moveZ;
             player.rotation.y = playerAngle;
 
-            // REALISTIC WALK ANIMATION
             if (isMoving && isGrounded) {
                 walkCycle += delta * 12;
                 player.userData.legL.rotation.x = Math.sin(walkCycle) * 0.8;
