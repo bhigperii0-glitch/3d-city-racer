@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+k<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -11,7 +11,6 @@
         #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
         #ui h3 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 2px 2px 0 #000; }
         
-        /* STEERING WHEEL */
         #steering-wheel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             width: 120px; height: 120px;
@@ -35,6 +34,7 @@
     <div id="ui">
         <h3>🌍 Endless City</h3>
         <p>Players: <span id="playerCount">1</span></p>
+        <p style="color:#ff5252; font-size:8px; margin-top:5px;">Watch out for traffic!</p>
     </div>
 
     <div id="steering-wheel"></div>
@@ -58,23 +58,25 @@
         
         let speed = 0;
         let carAngle = 0;
-        const maxSpeed = 2.5;
-        const acceleration = 0.03;
+        const maxSpeed = 3.0;
+        const acceleration = 0.04;
         const friction = 0.02;
         const turnSpeed = 0.04;
         
         window.keys = { forward: false, backward: false, left: false, right: false };
 
-        // --- INFINITE WORLD VARIABLES ---
+        // WORLD VARIABLES
         const roadLength = 100;
-        const numTiles = 10;
+        const numTiles = 15;
         let roadTiles = [];
         let buildings = [];
+        let botCars = [];
+        let pedestrians = [];
 
         window.onload = function() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB); 
-            scene.fog = new THREE.Fog(0x87CEEB, 30, 120);
+            scene.fog = new THREE.Fog(0x87CEEB, 60, 180);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -88,53 +90,66 @@
             dirLight.castShadow = true;
             scene.add(dirLight);
 
-            // --- MINECRAFT TEXTURES ---
+            // MINECRAFT TEXTURES
             const grassTex = makeMinecraftTexture('#388e3c', '#4caf50');
             const roadTex = makeMinecraftTexture('#333333', '#444444');
             const buildingTex = makeMinecraftTexture('#888888', '#999999');
 
-            // --- INFINITE ROAD GENERATION ---
+            // INITIAL GENERATION
             for (let i = 0; i < numTiles; i++) {
+                const zPos = -i * roadLength;
+
                 // Grass Base
                 const grass = new THREE.Mesh(new THREE.BoxGeometry(100, 2, roadLength), new THREE.MeshStandardMaterial({ map: grassTex }));
-                grass.position.y = -1;
+                grass.position.set(0, -1, zPos);
                 grass.receiveShadow = true;
                 scene.add(grass);
 
                 // Road
                 const road = new THREE.Mesh(new THREE.BoxGeometry(30, 0.2, roadLength), new THREE.MeshStandardMaterial({ map: roadTex }));
-                road.position.set(0, 0, -i * roadLength);
+                road.position.set(0, 0, zPos);
                 road.receiveShadow = true;
                 scene.add(road);
                 
-                // Road Lines (Minecraft Style)
+                // Road Lines
                 const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
                 for(let lz = 0; lz < roadLength; lz += 10) {
                     const line = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 5), lineMat);
-                    line.position.set(0, 0.15, -i * roadLength - lz);
+                    line.position.set(0, 0.15, zPos - lz);
                     scene.add(line);
                 }
 
-                roadTiles.push({ road: road, grass: grass, z: -i * roadLength });
+                roadTiles.push({ road: road, grass: grass });
 
-                // --- PROCEDURAL BUILDINGS ---
-                if (Math.random() > 0.3) {
-                    const bHeight = 10 + Math.random() * 30;
+                // DENSE BUILDINGS
+                for (let b = 0; b < 2; b++) {
+                    const bHeight = 10 + Math.random() * 40;
                     const bWidth = 10 + Math.random() * 10;
+                    const bDepth = 15 + Math.random() * 15;
                     
-                    const leftB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, 20), new THREE.MeshStandardMaterial({ map: buildingTex }));
-                    leftB.position.set(-25 - (Math.random()*10), bHeight/2, -i * roadLength - (Math.random()*50));
+                    const leftB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, bDepth), new THREE.MeshStandardMaterial({ map: buildingTex }));
+                    leftB.position.set(-25 - Math.random()*10, bHeight/2, zPos - (Math.random() * roadLength));
                     leftB.castShadow = true;
                     scene.add(leftB); buildings.push(leftB);
 
-                    const rightB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, 20), new THREE.MeshStandardMaterial({ map: buildingTex }));
-                    rightB.position.set(25 + (Math.random()*10), bHeight/2, -i * roadLength - (Math.random()*50));
+                    const rightB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, bDepth), new THREE.MeshStandardMaterial({ map: buildingTex }));
+                    rightB.position.set(25 + Math.random()*10, bHeight/2, zPos - (Math.random() * roadLength));
                     rightB.castShadow = true;
                     scene.add(rightB); buildings.push(rightB);
                 }
             }
 
-            // --- PLAYER CAR ---
+            // SPAWN BOT CARS (AI Traffic)
+            for (let i = 0; i < 15; i++) {
+                spawnBotCar(-Math.random() * 1000);
+            }
+
+            // SPAWN PEDESTRIANS (On the grass)
+            for (let i = 0; i < 30; i++) {
+                spawnPedestrian(-Math.random() * 1000);
+            }
+
+            // PLAYER CAR
             carMesh = new THREE.Group();
             const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: 0x1976d2 }));
             chassis.position.y = 0.6; chassis.castShadow = true; carMesh.add(chassis);
@@ -145,19 +160,12 @@
 
             steeringWheel = document.getElementById('steering-wheel');
 
-            // --- MULTIPLAYER ---
+            // MULTIPLAYER
             socket.on('currentPlayers', (players) => {
-                Object.keys(players).forEach((id) => {
-                    if (id !== socket.id) addOtherPlayer(players[id]);
-                });
+                Object.keys(players).forEach((id) => { if (id !== socket.id) addOtherPlayer(players[id]); });
                 document.getElementById('playerCount').innerText = Object.keys(players).length;
             });
-
-            socket.on('newPlayer', (playerInfo) => {
-                addOtherPlayer(playerInfo);
-                document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1;
-            });
-
+            socket.on('newPlayer', (playerInfo) => { addOtherPlayer(playerInfo); document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1; });
             socket.on('playerMoved', (playerInfo) => {
                 if (otherPlayers[playerInfo.id]) {
                     otherPlayers[playerInfo.id].targetX = playerInfo.x;
@@ -165,7 +173,6 @@
                     otherPlayers[playerInfo.id].targetAngle = playerInfo.angle;
                 }
             });
-
             socket.on('playerDisconnected', (id) => {
                 if (otherPlayers[id]) {
                     scene.remove(otherPlayers[id].mesh);
@@ -188,6 +195,39 @@
             return tex;
         }
 
+        function spawnBotCar(zPos) {
+            const bot = new THREE.Group();
+            const colors = [0xd32f2f, 0x388e3c, 0xfbc02d, 0xffffff];
+            const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random()*colors.length)] }));
+            chassis.position.y = 0.6; bot.add(chassis);
+            
+            // AI Cars drive in the right lane (x = 7)
+            bot.position.set(7, 0, zPos);
+            scene.add(bot);
+            
+            // Speed of the AI car (slower than player)
+            botCars.push({ mesh: bot, speed: 0.5 + Math.random() * 1.0 });
+        }
+
+        function spawnPedestrian(zPos) {
+            const ped = new THREE.Group();
+            // Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, 0.4), new THREE.MeshStandardMaterial({ color: Math.random()*0xffffff }));
+            body.position.y = 0.6; body.castShadow = true; ped.add(body);
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0xffccbc }));
+            head.position.y = 1.45; ped.add(head);
+            
+            // Pedestrians walk on the grass (sidewalks), far from the road
+            const side = Math.random() > 0.5 ? 1 : -1; // Left or right
+            const xPos = side * (20 + Math.random() * 15); 
+            
+            ped.position.set(xPos, 0, zPos);
+            scene.add(ped);
+            
+            pedestrians.push({ mesh: ped, speed: 0.1 + Math.random() * 0.2, direction: side });
+        }
+
         function addOtherPlayer(playerInfo) {
             const group = new THREE.Group();
             const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: playerInfo.color }));
@@ -207,14 +247,13 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
-            // 1. Physics
+            // 1. Player Physics
             if (keys['forward']) speed += acceleration;
             else if (keys['backward']) speed -= acceleration;
             else speed *= (1 - friction); 
-
             speed = Math.max(-maxSpeed/2, Math.min(maxSpeed, speed));
 
-            // 2. Steering & Wheel Rotation
+            // 2. Steering
             if (Math.abs(speed) > 0.05) {
                 if (keys['left']) { carAngle += turnSpeed; steeringWheel.style.transform = 'translateX(-50%) rotate(-45deg)'; }
                 else if (keys['right']) { carAngle -= turnSpeed; steeringWheel.style.transform = 'translateX(-50%) rotate(45deg)'; }
@@ -223,12 +262,12 @@
                 steeringWheel.style.transform = 'translateX(-50%) rotate(0deg)';
             }
 
-            // 3. Move Car
+            // 3. Move Player
             carMesh.position.x -= Math.sin(carAngle) * speed;
             carMesh.position.z -= Math.cos(carAngle) * speed;
             carMesh.rotation.y = carAngle;
 
-            // 4. MULTIPLAYER SYNC
+            // 4. Multiplayer Sync
             socket.emit('playerMovement', { x: carMesh.position.x, z: carMesh.position.z, angle: carAngle });
             Object.keys(otherPlayers).forEach(id => {
                 const p = otherPlayers[id];
@@ -237,34 +276,62 @@
                 p.mesh.rotation.y = p.targetAngle;
             });
 
-            // 5. INFINITE ROAD RECYCLING
             const currentZ = carMesh.position.z;
-            roadTiles.forEach((tile, index) => {
-                // If the tile is behind the player, move it to the front
-                if (tile.road.position.z > currentZ + roadLength) {
+
+            // 5. Recycle Road & Buildings
+            roadTiles.forEach((tile) => {
+                if (tile.road.position.z > currentZ + 100) {
                     const newZ = tile.road.position.z - (numTiles * roadLength);
                     tile.road.position.z = newZ;
                     tile.grass.position.z = newZ;
-                    
-                    // Move the lines too
-                    scene.children.forEach(child => {
-                        if(child.geometry && child.geometry.parameters && child.geometry.parameters.height === 0.1 && child.position.z > currentZ) {
-                            child.position.z -= (numTiles * roadLength);
-                        }
-                    });
                 }
             });
 
-            // Recycle Buildings
             buildings.forEach(b => {
-                if (b.position.z > currentZ + 50) {
+                if (b.position.z > currentZ + 100) {
                     b.position.z -= (numTiles * roadLength);
-                    b.position.x = (Math.random() > 0.5 ? 1 : -1) * (25 + (Math.random()*10));
+                    b.position.x = (b.position.x > 0 ? 1 : -1) * (25 + Math.random()*10);
                 }
             });
 
-            // 6. Camera Follow
-            const camOffset = { x: Math.sin(carAngle) * 12, y: 7, z: Math.cos(carAngle) * 12 };
+            // 6. AI Traffic Logic
+            botCars.forEach(car => {
+                // Move bot forward (away from player)
+                car.mesh.position.z -= car.speed;
+                
+                // Collision detection with player
+                const distX = Math.abs(carMesh.position.x - car.mesh.position.x);
+                const distZ = Math.abs(carMesh.position.z - car.mesh.position.z);
+                if (distX < 2.5 && distZ < 4.5) {
+                    speed = 0; // Crash! Stop player
+                    // Push bot away so we don't get stuck in a loop
+                    car.mesh.position.z -= 10; 
+                }
+
+                // Recycle bot if it goes too far ahead
+                if (car.mesh.position.z < currentZ - (numTiles * roadLength)) {
+                    car.mesh.position.z = currentZ - 100;
+                    car.mesh.position.x = 7; // Reset to lane
+                }
+            });
+
+            // 7. Pedestrian Logic
+            pedestrians.forEach(ped => {
+                // Move pedestrian slowly along Z
+                ped.mesh.position.z -= 0.05;
+                // Make them walk left/right slightly
+                ped.mesh.position.x += Math.sin(Date.now() * 0.001 + ped.speed) * 0.05;
+
+                // Recycle if too far ahead
+                if (ped.mesh.position.z < currentZ - (numTiles * roadLength)) {
+                    ped.mesh.position.z = currentZ - 100;
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    ped.mesh.position.x = side * (20 + Math.random() * 15);
+                }
+            });
+
+            // 8. Camera Follow
+            const camOffset = { x: Math.sin(carAngle) * 12, y: 8, z: Math.cos(carAngle) * 12 };
             camera.position.x += (carMesh.position.x + camOffset.x - camera.position.x) * 0.1;
             camera.position.y += (carMesh.position.y + camOffset.y - camera.position.y) * 0.1;
             camera.position.z += (carMesh.position.z + camOffset.z - camera.position.z) * 0.1;
