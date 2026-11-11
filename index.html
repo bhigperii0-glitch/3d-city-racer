@@ -3,24 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minecraft Multiplayer World</title>
+    <title>Minecraft Endless Racer</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
         
-        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2), inset -4px -4px 0 rgba(0,0,0,0.4);}
+        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
         #ui h3 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 2px 2px 0 #000; }
         
-        #radar { position: absolute; top: 10px; right: 10px; width: 80px; height: 80px; background: rgba(0,0,0,0.8); border: 4px solid #555; border-radius: 50%; z-index: 10; overflow: hidden;}
-        .radar-dot { position: absolute; width: 10px; height: 10px; background: red; border-radius: 50%; transform: translate(-50%, -50%); border: 1px solid white;}
-        #myRadarDot { background: blue; }
+        /* STEERING WHEEL */
+        #steering-wheel {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 120px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="%23333" stroke-width="10"/><circle cx="50" cy="50" r="20" fill="%23333"/><line x1="50" y1="5" x2="50" y2="30" stroke="%23333" stroke-width="10"/><line x1="10" y1="50" x2="30" y2="50" stroke="%23333" stroke-width="10"/><line x1="90" y1="50" x2="70" y2="50" stroke="%23333" stroke-width="10"/></svg>') no-repeat center;
+            background-size: contain;
+            z-index: 10;
+            transition: transform 0.1s;
+            pointer-events: none;
+        }
 
-        #speedometer { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0,0,0,0.7); padding: 10px 20px; font-size: 20px; z-index: 10; border: 4px solid #555; text-shadow: 2px 2px 0 #000;}
-        
         #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10;}
         .d-pad { display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; gap: 5px; pointer-events: auto; }
-        .btn { background: #888; color: white; border: 4px solid #333; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4), inset -2px -2px 0 rgba(0,0,0,0.4);}
-        .btn:active { background: #555; box-shadow: inset 2px 2px 0 rgba(0,0,0,0.4); }
+        .btn { background: #888; color: white; border: 4px solid #333; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4);}
+        .btn:active { background: #555; }
     </style>
     
     <script src="three.min.js"></script>
@@ -28,15 +33,11 @@
 </head>
 <body>
     <div id="ui">
-        <h3>🌍 Multiplayer</h3>
+        <h3>🌍 Endless City</h3>
         <p>Players: <span id="playerCount">1</span></p>
     </div>
 
-    <div id="radar">
-        <div id="myRadarDot" class="radar-dot" style="top:50%; left:50%;"></div>
-    </div>
-
-    <div id="speedometer">0 KM/H</div>
+    <div id="steering-wheel"></div>
 
     <div id="controls">
         <div class="d-pad">
@@ -53,21 +54,27 @@
         const socket = io();
         const otherPlayers = {}; 
         let scene, camera, renderer;
-        let carMesh;
+        let carMesh, steeringWheel;
         
         let speed = 0;
         let carAngle = 0;
-        const maxSpeed = 2.0;
+        const maxSpeed = 2.5;
         const acceleration = 0.03;
         const friction = 0.02;
         const turnSpeed = 0.04;
         
         window.keys = { forward: false, backward: false, left: false, right: false };
 
+        // --- INFINITE WORLD VARIABLES ---
+        const roadLength = 100;
+        const numTiles = 10;
+        let roadTiles = [];
+        let buildings = [];
+
         window.onload = function() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB); 
-            scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
+            scene.fog = new THREE.Fog(0x87CEEB, 30, 120);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -81,32 +88,49 @@
             dirLight.castShadow = true;
             scene.add(dirLight);
 
-            // --- MINECRAFT WORLD ---
-            const grassTex = makeMinecraftGrassTexture();
-            const ground = new THREE.Mesh(new THREE.BoxGeometry(500, 2, 500), new THREE.MeshStandardMaterial({ map: grassTex }));
-            ground.position.y = -1;
-            ground.receiveShadow = true;
-            scene.add(ground);
+            // --- MINECRAFT TEXTURES ---
+            const grassTex = makeMinecraftTexture('#388e3c', '#4caf50');
+            const roadTex = makeMinecraftTexture('#333333', '#444444');
+            const buildingTex = makeMinecraftTexture('#888888', '#999999');
 
-            const woodMat = new THREE.MeshStandardMaterial({ color: 0x795548 });
-            const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32 });
-            const cobbleMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
-            
-            for(let i=0; i<60; i++) {
-                const bx = Math.random() * 300 - 150;
-                const bz = Math.random() * 300 - 150;
-                // Keep the center clear so we can see the spawn
-                if(Math.abs(bx) < 20 && Math.abs(bz) < 20) continue;
+            // --- INFINITE ROAD GENERATION ---
+            for (let i = 0; i < numTiles; i++) {
+                // Grass Base
+                const grass = new THREE.Mesh(new THREE.BoxGeometry(100, 2, roadLength), new THREE.MeshStandardMaterial({ map: grassTex }));
+                grass.position.y = -1;
+                grass.receiveShadow = true;
+                scene.add(grass);
 
-                if(Math.random() > 0.5) {
-                    const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 2), woodMat);
-                    trunk.position.set(bx, 3, bz); trunk.castShadow = true; scene.add(trunk);
-                    const leaves = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), leafMat);
-                    leaves.position.set(bx, 8, bz); leaves.castShadow = true; scene.add(leaves);
-                } else {
-                    const h = 10 + Math.random() * 20;
-                    const b = new THREE.Mesh(new THREE.BoxGeometry(10, h, 10), cobbleMat);
-                    b.position.set(bx, h/2, bz); b.castShadow = true; b.receiveShadow = true; scene.add(b);
+                // Road
+                const road = new THREE.Mesh(new THREE.BoxGeometry(30, 0.2, roadLength), new THREE.MeshStandardMaterial({ map: roadTex }));
+                road.position.set(0, 0, -i * roadLength);
+                road.receiveShadow = true;
+                scene.add(road);
+                
+                // Road Lines (Minecraft Style)
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                for(let lz = 0; lz < roadLength; lz += 10) {
+                    const line = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 5), lineMat);
+                    line.position.set(0, 0.15, -i * roadLength - lz);
+                    scene.add(line);
+                }
+
+                roadTiles.push({ road: road, grass: grass, z: -i * roadLength });
+
+                // --- PROCEDURAL BUILDINGS ---
+                if (Math.random() > 0.3) {
+                    const bHeight = 10 + Math.random() * 30;
+                    const bWidth = 10 + Math.random() * 10;
+                    
+                    const leftB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, 20), new THREE.MeshStandardMaterial({ map: buildingTex }));
+                    leftB.position.set(-25 - (Math.random()*10), bHeight/2, -i * roadLength - (Math.random()*50));
+                    leftB.castShadow = true;
+                    scene.add(leftB); buildings.push(leftB);
+
+                    const rightB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, 20), new THREE.MeshStandardMaterial({ map: buildingTex }));
+                    rightB.position.set(25 + (Math.random()*10), bHeight/2, -i * roadLength - (Math.random()*50));
+                    rightB.castShadow = true;
+                    scene.add(rightB); buildings.push(rightB);
                 }
             }
 
@@ -116,10 +140,12 @@
             chassis.position.y = 0.6; chassis.castShadow = true; carMesh.add(chassis);
             const cabin = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
             cabin.position.set(0, 1.4, -0.2); cabin.castShadow = true; carMesh.add(cabin);
-            carMesh.position.set(0, 0, 0); // Start at center
+            carMesh.position.set(0, 0, 10);
             scene.add(carMesh);
 
-            // --- MULTIPLAYER LISTENERS ---
+            steeringWheel = document.getElementById('steering-wheel');
+
+            // --- MULTIPLAYER ---
             socket.on('currentPlayers', (players) => {
                 Object.keys(players).forEach((id) => {
                     if (id !== socket.id) addOtherPlayer(players[id]);
@@ -143,7 +169,6 @@
             socket.on('playerDisconnected', (id) => {
                 if (otherPlayers[id]) {
                     scene.remove(otherPlayers[id].mesh);
-                    if(otherPlayers[id].radarDot) otherPlayers[id].radarDot.remove();
                     delete otherPlayers[id];
                     document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1;
                 }
@@ -152,33 +177,15 @@
             animate();
         };
 
-        function makeMinecraftGrassTexture() {
+        function makeMinecraftTexture(color1, color2) {
             const c = document.createElement('canvas'); c.width = 64; c.height = 64;
             const ctx = c.getContext('2d'); 
-            ctx.fillStyle = '#388e3c'; ctx.fillRect(0, 0, 64, 64);
-            ctx.fillStyle = '#4caf50';
-            for(let i=0; i<50; i++) { ctx.fillRect(Math.random()*64, Math.random()*64, 4, 4); }
+            ctx.fillStyle = color1; ctx.fillRect(0, 0, 64, 64);
+            ctx.fillStyle = color2;
+            for(let i=0; i<100; i++) { ctx.fillRect(Math.random()*64, Math.random()*64, 4, 4); }
             const tex = new THREE.CanvasTexture(c); 
-            tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(100, 100);
+            tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(5, 5);
             return tex;
-        }
-
-        function createNameTag(name) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 64;
-            const context = canvas.getContext('2d');
-            context.font = "24px 'Press Start 2P'";
-            context.fillStyle = "rgba(0,0,0,0.6)";
-            context.fillRect(0,0,256,64);
-            context.fillStyle = "yellow";
-            context.textAlign = "center";
-            context.fillText(name, 128, 40);
-            
-            const texture = new THREE.CanvasTexture(canvas);
-            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
-            const sprite = new THREE.Sprite(spriteMaterial);
-            sprite.scale.set(8, 2, 1);
-            return sprite;
         }
 
         function addOtherPlayer(playerInfo) {
@@ -187,22 +194,9 @@
             chassis.position.y = 0.6; group.add(chassis);
             const cabin = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
             cabin.position.set(0, 1.4, -0.2); group.add(cabin);
-
-            const nameTag = createNameTag(playerInfo.name);
-            nameTag.position.set(0, 3.5, 0);
-            group.add(nameTag);
-
             group.position.set(playerInfo.x, 0, playerInfo.z);
-            group.rotation.y = playerInfo.angle;
             scene.add(group);
-            
-            const dot = document.createElement('div');
-            dot.className = 'radar-dot';
-            dot.style.top = '50%';
-            dot.style.left = '50%';
-            document.getElementById('radar').appendChild(dot);
-
-            otherPlayers[playerInfo.id] = { mesh: group, targetX: playerInfo.x, targetZ: playerInfo.z, targetAngle: playerInfo.angle, radarDot: dot };
+            otherPlayers[playerInfo.id] = { mesh: group, targetX: playerInfo.x, targetZ: playerInfo.z, targetAngle: playerInfo.angle };
         }
 
         window.setMove = function(dir, isPressed) { keys[dir] = isPressed; }
@@ -213,55 +207,68 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
+            // 1. Physics
             if (keys['forward']) speed += acceleration;
             else if (keys['backward']) speed -= acceleration;
             else speed *= (1 - friction); 
 
             speed = Math.max(-maxSpeed/2, Math.min(maxSpeed, speed));
 
+            // 2. Steering & Wheel Rotation
             if (Math.abs(speed) > 0.05) {
-                if (keys['left']) carAngle += turnSpeed;
-                if (keys['right']) carAngle -= turnSpeed;
+                if (keys['left']) { carAngle += turnSpeed; steeringWheel.style.transform = 'translateX(-50%) rotate(-45deg)'; }
+                else if (keys['right']) { carAngle -= turnSpeed; steeringWheel.style.transform = 'translateX(-50%) rotate(45deg)'; }
+                else { steeringWheel.style.transform = 'translateX(-50%) rotate(0deg)'; }
+            } else {
+                steeringWheel.style.transform = 'translateX(-50%) rotate(0deg)';
             }
 
+            // 3. Move Car
             carMesh.position.x -= Math.sin(carAngle) * speed;
             carMesh.position.z -= Math.cos(carAngle) * speed;
             carMesh.rotation.y = carAngle;
 
+            // 4. MULTIPLAYER SYNC
             socket.emit('playerMovement', { x: carMesh.position.x, z: carMesh.position.z, angle: carAngle });
-
             Object.keys(otherPlayers).forEach(id => {
                 const p = otherPlayers[id];
                 p.mesh.position.x += (p.targetX - p.mesh.position.x) * 0.2;
                 p.mesh.position.z += (p.targetZ - p.mesh.position.z) * 0.2;
                 p.mesh.rotation.y = p.targetAngle;
-
-                // FIXED RADAR MATH
-                const dx = p.targetX - carMesh.position.x;
-                const dz = p.targetZ - carMesh.position.z;
-                
-                // Map relative position to radar (radar is 80x80, center is 40,40)
-                let rX = 40 + (dx * 1.5);
-                let rZ = 40 + (dz * 1.5);
-                
-                // Keep dot inside the radar circle
-                if (rX > 75) rX = 75;
-                if (rX < 5) rX = 5;
-                if (rZ > 75) rZ = 75;
-                if (rZ < 5) rZ = 5;
-
-                p.radarDot.style.left = `${rX}px`;
-                p.radarDot.style.top = `${rZ}px`;
             });
 
-            const camOffset = { x: Math.sin(carAngle) * 15, y: 8, z: Math.cos(carAngle) * 15 };
+            // 5. INFINITE ROAD RECYCLING
+            const currentZ = carMesh.position.z;
+            roadTiles.forEach((tile, index) => {
+                // If the tile is behind the player, move it to the front
+                if (tile.road.position.z > currentZ + roadLength) {
+                    const newZ = tile.road.position.z - (numTiles * roadLength);
+                    tile.road.position.z = newZ;
+                    tile.grass.position.z = newZ;
+                    
+                    // Move the lines too
+                    scene.children.forEach(child => {
+                        if(child.geometry && child.geometry.parameters && child.geometry.parameters.height === 0.1 && child.position.z > currentZ) {
+                            child.position.z -= (numTiles * roadLength);
+                        }
+                    });
+                }
+            });
+
+            // Recycle Buildings
+            buildings.forEach(b => {
+                if (b.position.z > currentZ + 50) {
+                    b.position.z -= (numTiles * roadLength);
+                    b.position.x = (Math.random() > 0.5 ? 1 : -1) * (25 + (Math.random()*10));
+                }
+            });
+
+            // 6. Camera Follow
+            const camOffset = { x: Math.sin(carAngle) * 12, y: 7, z: Math.cos(carAngle) * 12 };
             camera.position.x += (carMesh.position.x + camOffset.x - camera.position.x) * 0.1;
             camera.position.y += (carMesh.position.y + camOffset.y - camera.position.y) * 0.1;
             camera.position.z += (carMesh.position.z + camOffset.z - camera.position.z) * 0.1;
             camera.lookAt(carMesh.position.x, carMesh.position.y + 1, carMesh.position.z);
-
-            let kmh = Math.floor(Math.abs(speed) * 120);
-            document.getElementById('speedometer').innerText = `${kmh} KM/H`;
 
             renderer.render(scene, camera);
         }
