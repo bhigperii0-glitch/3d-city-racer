@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GTA: Minecraft Block City</title>
+    <title>GTA Minecraft: Endless World</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
+        body { margin: 0; overflow: hidden; background-color: #78A7FF; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
         
         /* UI */
         #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; display: block; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
@@ -14,24 +14,33 @@
         .money { color: #4caf50; font-size: 14px; }
         #missionText { color: #ff5252; font-weight: bold; margin-top: 10px; font-size: 10px; line-height: 1.5;}
 
+        /* Crosshair for Mining */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 30px; font-weight: bold; pointer-events: none; z-index: 5; opacity: 0.7; text-shadow: 0 0 5px black;}
+
         /* Controls */
         #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10;}
         
         .d-pad { display: grid; grid-template-columns: 60px 60px 60px; grid-template-rows: 60px 60px; gap: 5px; pointer-events: auto; }
-        .btn { background: #888; color: white; border: 4px solid #333; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 20px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4);}
-        .btn:active { background: #555; }
+        .btn { background: rgba(0,0,0,0.6); color: white; border: 4px solid #555; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 20px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.2);}
+        .btn:active { background: #333; }
         
-        #actionBtn { position: absolute; bottom: 20px; right: 20px; width: 90px; height: 90px; border-radius: 50%; background: #d32f2f; color: white; border: 4px solid #b71c1c; font-family: 'Press Start 2P', monospace; font-size: 12px; font-weight: bold; pointer-events: auto; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); display: flex; justify-content: center; align-items: center; text-align: center;}
-        #actionBtn:active { background: #b71c1c; }
+        .action-container { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto;}
+        
+        .action-btn { width: 80px; height: 80px; border-radius: 50%; color: white; border: 4px solid #222; font-family: 'Press Start 2P', monospace; font-size: 12px; font-weight: bold; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); display: flex; justify-content: center; align-items: center; text-align: center;}
+        #jumpBtn { background: #1976d2; }
+        #actionBtn { background: #d32f2f; }
+        #mineBtn { background: #ff9800; width: 60px; height: 60px; font-size: 10px;}
     </style>
     
     <script src="three.min.js"></script>
 </head>
 <body>
+    <div id="crosshair">+</div>
+
     <div id="ui">
-        <h3>⛏️ Block City</h3>
+        <h3>⛏️ Endless MC</h3>
         <p>Cash: <span class="money" id="money">$0</span></p>
-        <p id="missionText">Mission: Find the red target on the hills and eliminate them!</p>
+        <p id="missionText">Mission: Find the red target on the hills!</p>
     </div>
 
     <div id="controls">
@@ -44,10 +53,15 @@
             <div class="btn" ontouchstart="setMove('right', true)" ontouchend="setMove('right', false)" onmousedown="setMove('right', true)" onmouseup="setMove('right', false)">➡️</div>
         </div>
     </div>
-    <button id="actionBtn" onclick="doAction()">KILL</button>
+
+    <div class="action-container">
+        <button id="mineBtn" class="action-btn" onclick="mineBlock()">MINE</button>
+        <button id="jumpBtn" class="action-btn" onclick="jump()">JUMP</button>
+        <button id="actionBtn" class="action-btn" onclick="doAction()">KILL</button>
+    </div>
 
     <script>
-        let scene, camera, renderer;
+        let scene, camera, renderer, raycaster;
         let player, playerAngle = 0;
         let money = 0;
         let targetNPC, houseDoor;
@@ -56,31 +70,32 @@
         // Physics
         let velocityY = 0;
         let isGrounded = false;
-        const gravity = -30;
-        const jumpForce = 12;
+        const gravity = -35;
+        const jumpForce = 14;
         
-        // World Data
-        const blockSize = 4; // Size of each Minecraft block
-        const worldSize = 20; // 20x20 blocks
-        let worldBlocks = []; // For collision detection
+        // World Generation
+        const blockSize = 4;
+        const CHUNK_SIZE = 6; // 6x6 blocks per chunk
+        const RENDER_DISTANCE = 3; // Renders 3 chunks in every direction
+        let activeChunks = {};
+        let allBlocks = []; // For collision and mining
 
-        // Game State
         let missionComplete = false;
 
-        // --- TEXTURES ---
+        // --- HIGH-RES MINECRAFT TEXTURES ---
         function createMCTexture(baseColor, noiseColor) {
-            const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 16;
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d'); 
-            ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 16, 16);
+            ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 64, 64);
             ctx.fillStyle = noiseColor;
-            for(let i=0; i<50; i++) { ctx.fillRect(Math.floor(Math.random()*16), Math.floor(Math.random()*16), 2, 2); }
+            for(let i=0; i<200; i++) { ctx.fillRect(Math.floor(Math.random()*64), Math.floor(Math.random()*64), 4, 4); }
             const tex = new THREE.CanvasTexture(canvas); 
             tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
             return tex;
         }
 
-        const texGrass = createMCTexture('#5A9E3F', '#4B8832');
-        const texDirt = createMCTexture('#795548', '#5D4037');
+        const texGrassTop = createMCTexture('#5A9E3F', '#4B8832');
+        const texGrassSide = createMCTexture('#795548', '#5D4037'); // Dirt side
         const texStone = createMCTexture('#888888', '#666666');
         const texWood = createMCTexture('#5D4037', '#3E2723');
         const texLeaves = createMCTexture('#4CAF50', '#2E7D32');
@@ -88,98 +103,142 @@
         window.onload = function() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x78A7FF); 
-            scene.fog = new THREE.Fog(0x78A7FF, 80, 180);
+            scene.fog = new THREE.Fog(0x78A7FF, 60, 150); // Fog hides the chunk loading
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Lighting
+            // Lighting (Sun)
             scene.add(new THREE.AmbientLight(0xffffff, 0.6)); 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.0);
             dirLight.position.set(50, 100, 50);
             dirLight.castShadow = true;
             dirLight.shadow.camera.left = -100; dirLight.shadow.camera.right = 100;
             dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -100;
+            dirLight.shadow.mapSize.width = 1024;
             scene.add(dirLight);
 
-            generateTerrain();
+            // Clouds
+            const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+            for(let i=0; i<30; i++) {
+                const cloud = new THREE.Mesh(new THREE.BoxGeometry(20 + Math.random()*20, 4, 20 + Math.random()*20), cloudMat);
+                cloud.position.set(Math.random()*400 - 200, 60 + Math.random()*20, Math.random()*400 - 200);
+                scene.add(cloud);
+            }
+
+            raycaster = new THREE.Raycaster();
+            raycaster.far = 20; // How far you can mine
+
             createPlayer();
             
-            // Spawn Target on a hill
-            createTarget(15, -15, 2);
+            // Spawn Target on a hill near the start
+            setTimeout(() => {
+                createTarget(15, -15, 2);
+                buildHouse(0, 0);
+            }, 1000);
 
             animate();
         };
 
-        function generateTerrain() {
+        // --- INFINITE CHUNK GENERATION ---
+        function generateChunk(cx, cz) {
+            const chunkGroup = new THREE.Group();
             const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
             
-            for (let x = -worldSize; x < worldSize; x++) {
-                for (let z = -worldSize; z < worldSize; z++) {
-                    // Create rolling hills using Sine waves
-                    let height = Math.floor(Math.sin(x / 3) * 2 + Math.cos(z / 3) * 2) + 3;
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                for (let z = 0; z < CHUNK_SIZE; z++) {
+                    // Math for rolling hills (Endless)
+                    const worldX = cx * CHUNK_SIZE + x;
+                    const worldZ = cz * CHUNK_SIZE + z;
+                    let height = Math.floor(Math.sin(worldX / 4) * 2 + Math.cos(worldZ / 4) * 2) + 2;
                     
-                    // Build a pillar of blocks
-                    for (let y = 0; y <= height; y++) {
+                    // Only build the top 2 layers (Grass & Dirt) to save memory!
+                    for (let y = height; y >= height - 1; y--) {
                         let mat;
-                        if (y === height) mat = new THREE.MeshStandardMaterial({ map: texGrass }); // Top block
-                        else if (y > height - 2) mat = new THREE.MeshStandardMaterial({ map: texDirt }); // Dirt below grass
-                        else mat = new THREE.MeshStandardMaterial({ map: texStone }); // Stone below dirt
+                        if (y === height) {
+                            // Grass block (Green on top, Dirt on sides)
+                            mat = [
+                                new THREE.MeshStandardMaterial({ map: texGrassSide }), // right
+                                new THREE.MeshStandardMaterial({ map: texGrassSide }), // left
+                                new THREE.MeshStandardMaterial({ map: texGrassTop }),  // top
+                                new THREE.MeshStandardMaterial({ map: texGrassSide }), // bottom
+                                new THREE.MeshStandardMaterial({ map: texGrassSide }), // front
+                                new THREE.MeshStandardMaterial({ map: texGrassSide })  // back
+                            ];
+                        } else {
+                            mat = new THREE.MeshStandardMaterial({ map: texStone });
+                        }
 
                         const block = new THREE.Mesh(geometry, mat);
-                        block.position.set(x * blockSize, y * blockSize, z * blockSize);
+                        block.position.set(worldX * blockSize, y * blockSize, worldZ * blockSize);
                         block.receiveShadow = true;
                         block.castShadow = true;
-                        scene.add(block);
+                        chunkGroup.add(block);
 
-                        // Add top blocks to collision array
+                        // Save top blocks for collision and mining
                         if (y === height) {
-                            worldBlocks.push({ x: x * blockSize, y: y * blockSize, z: z * blockSize });
+                            allBlocks.push({ mesh: block, x: block.position.x, y: block.position.y, z: block.position.z });
                         }
                     }
 
-                    // Spawn Trees randomly on grass
-                    if (Math.random() < 0.05 && height > 2) {
-                        createTree(x * blockSize, (height + 1) * blockSize, z * blockSize);
+                    // Spawn Trees
+                    if (Math.random() < 0.03 && height > 2) {
+                        const tree = createTree(worldX * blockSize, height * blockSize + blockSize, worldZ * blockSize);
+                        chunkGroup.add(tree);
                     }
                 }
             }
 
-            // Build Player House
-            buildHouse(0, 0);
+            scene.add(chunkGroup);
+            activeChunks[`${cx},${cz}`] = chunkGroup;
+        }
+
+        function updateChunks(px, pz) {
+            const currentCX = Math.floor(px / (CHUNK_SIZE * blockSize));
+            const currentCZ = Math.floor(pz / (CHUNK_SIZE * blockSize));
+
+            // Generate new chunks
+            for (let x = currentCX - RENDER_DISTANCE; x <= currentCX + RENDER_DISTANCE; x++) {
+                for (let z = currentCZ - RENDER_DISTANCE; z <= currentCZ + RENDER_DISTANCE; z++) {
+                    const key = `${x},${z}`;
+                    if (!activeChunks[key]) generateChunk(x, z);
+                }
+            }
+
+            // Delete far chunks to stop lag
+            for (let key in activeChunks) {
+                const [cx, cz] = key.split(',').map(Number);
+                if (Math.abs(cx - currentCX) > RENDER_DISTANCE + 1 || Math.abs(cz - currentCZ) > RENDER_DISTANCE + 1) {
+                    scene.remove(activeChunks[key]);
+                    delete activeChunks[key];
+                    // Clean up block collisions in deleted chunks
+                    allBlocks = allBlocks.filter(b => Math.abs(b.x/ (CHUNK_SIZE*blockSize) - currentCX) <= RENDER_DISTANCE + 1);
+                }
+            }
         }
 
         function createTree(x, y, z) {
+            const tree = new THREE.Group();
             const trunk = new THREE.Mesh(new THREE.BoxGeometry(blockSize, blockSize*3, blockSize), new THREE.MeshStandardMaterial({ map: texWood }));
-            trunk.position.set(x, y + blockSize, z);
-            trunk.castShadow = true; scene.add(trunk);
-
+            trunk.position.set(x, y + blockSize, z); trunk.castShadow = true; tree.add(trunk);
             const leaves = new THREE.Mesh(new THREE.BoxGeometry(blockSize*2.5, blockSize*2.5, blockSize*2.5), new THREE.MeshStandardMaterial({ map: texLeaves }));
-            leaves.position.set(x, y + blockSize*3, z);
-            leaves.castShadow = true; scene.add(leaves);
+            leaves.position.set(x, y + blockSize*3, z); leaves.castShadow = true; tree.add(leaves);
+            return tree;
         }
 
         function buildHouse(x, z) {
             const houseMat = new THREE.MeshStandardMaterial({ map: texWood });
-            const roofMat = new THREE.MeshStandardMaterial({ map: texStone });
-            
-            // Base
             const base = new THREE.Mesh(new THREE.BoxGeometry(blockSize*4, blockSize*3, blockSize*4), houseMat);
-            base.position.set(x, blockSize*1.5, z);
-            base.castShadow = true; base.receiveShadow = true; scene.add(base);
+            base.position.set(x, blockSize*1.5, z); base.castShadow = true; base.receiveShadow = true; scene.add(base);
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(blockSize*5, blockSize*1, blockSize*5), new THREE.MeshStandardMaterial({ map: texStone }));
+            roof.position.set(x, blockSize*3.5, z); roof.castShadow = true; scene.add(roof);
 
-            // Roof
-            const roof = new THREE.Mesh(new THREE.BoxGeometry(blockSize*5, blockSize*1, blockSize*5), roofMat);
-            roof.position.set(x, blockSize*3.5, z);
-            roof.castShadow = true; scene.add(roof);
-
-            // Door
             houseDoor = new THREE.Mesh(new THREE.BoxGeometry(blockSize*1.5, blockSize*2, 0.5), new THREE.MeshBasicMaterial({ color: 0x4caf50 }));
-            houseDoor.position.set(x, blockSize*1, z + blockSize*2);
-            scene.add(houseDoor);
+            houseDoor.position.set(x, blockSize*1, z + blockSize*2); scene.add(houseDoor);
         }
 
         function createPlayer() {
@@ -189,8 +248,7 @@
             const head = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.5, blockSize*0.5, blockSize*0.5), new THREE.MeshStandardMaterial({ color: 0xffccbc }));
             head.position.y = blockSize*1.1; head.castShadow = true; player.add(head);
             
-            player.position.set(0, blockSize*4, blockSize*5); // Start above ground
-            scene.add(player);
+            player.position.set(0, 30, 20); scene.add(player);
         }
 
         function createTarget(x, z, yHeight) {
@@ -199,16 +257,29 @@
             body.position.y = blockSize*0.5; body.castShadow = true; targetNPC.add(body);
             const head = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.5, blockSize*0.5, blockSize*0.5), new THREE.MeshStandardMaterial({ color: 0xffccbc }));
             head.position.y = blockSize*1.1; head.castShadow = true; targetNPC.add(head);
-            
-            targetNPC.position.set(x * blockSize, yHeight * blockSize + 1, z * blockSize);
-            scene.add(targetNPC);
+            targetNPC.position.set(x * blockSize, yHeight * blockSize + 1, z * blockSize); scene.add(targetNPC);
         }
 
         window.setMove = function(dir, isPressed) { keys[dir] = isPressed; }
+        window.jump = function() { if(isGrounded) { velocityY = jumpForce; isGrounded = false; } }
+
+        // --- MINING SYSTEM ---
+        window.mineBlock = function() {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // Center of screen
+            const intersects = raycaster.intersectObjects(allBlocks.map(b => b.mesh));
+            
+            if (intersects.length > 0) {
+                const hitMesh = intersects[0].object;
+                scene.remove(hitMesh); // Remove visual
+                // Remove from collision array
+                allBlocks = allBlocks.filter(b => b.mesh !== hitMesh);
+            }
+        }
 
         function doAction() {
+            if(!targetNPC) return;
             const distToTarget = Math.hypot(player.position.x - targetNPC.position.x, player.position.z - targetNPC.position.z);
-            const distToDoor = Math.hypot(player.position.x - houseDoor.position.x, player.position.z - houseDoor.position.z);
+            const distToDoor = houseDoor ? Math.hypot(player.position.x - houseDoor.position.x, player.position.z - houseDoor.position.z) : 999;
 
             if (distToTarget < 6 && !missionComplete) {
                 scene.remove(targetNPC);
@@ -218,10 +289,10 @@
                 document.getElementById('missionText').style.color = "#4caf50";
                 missionComplete = true;
             } else if (distToDoor < 6) {
-                alert("You entered your house and rested.");
-                player.position.set(0, blockSize * 5, 0); // Teleport inside house
+                alert("You entered your house.");
+                player.position.set(0, blockSize * 5, 0); 
             } else {
-                alert("Nothing to do here. Find the red target on the hills!");
+                alert("Walk closer to the red target to kill them!");
             }
         }
 
@@ -232,39 +303,35 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
-            // Movement
-            let moveSpeed = 15 * delta;
+            // 1. Update Infinite World
+            updateChunks(player.position.x, player.position.z);
+
+            // 2. Player Movement
+            let moveSpeed = 18 * delta;
             let isMoving = false;
             let moveX = 0, moveZ = 0;
 
-            if (keys['forward']) { 
-                moveX -= Math.sin(playerAngle) * moveSpeed; 
-                moveZ -= Math.cos(playerAngle) * moveSpeed; 
-                isMoving = true;
-            }
-            if (keys['backward']) { 
-                moveX += Math.sin(playerAngle) * moveSpeed; 
-                moveZ += Math.cos(playerAngle) * moveSpeed; 
-                isMoving = true;
-            }
+            if (keys['forward']) { moveX -= Math.sin(playerAngle) * moveSpeed; moveZ -= Math.cos(playerAngle) * moveSpeed; isMoving = true; }
+            if (keys['backward']) { moveX += Math.sin(playerAngle) * moveSpeed; moveZ += Math.cos(playerAngle) * moveSpeed; isMoving = true; }
             if (keys['left']) { playerAngle += 0.05; isMoving = true; }
             if (keys['right']) { playerAngle -= 0.05; isMoving = true; }
 
-            // Gravity & Jumping
+            // 3. Gravity
             velocityY += gravity * delta;
             player.position.y += velocityY * delta;
 
-            // Terrain Collision (Find the highest block below the player)
-            let floorY = 0;
-            worldBlocks.forEach(block => {
-                // If player is above this block in X and Z
+            // 4. Terrain Collision (Land on top of blocks)
+            let floorY = -20; // Bottom of the world
+            allBlocks.forEach(block => {
+                // If player is roughly above this block
                 if (Math.abs(player.position.x - block.x) < blockSize/1.5 && Math.abs(player.position.z - block.z) < blockSize/1.5) {
-                    if (block.y > floorY) floorY = block.y;
+                    if (block.y > floorY && player.position.y >= block.y - 2) {
+                        floorY = block.y;
+                    }
                 }
             });
 
-            // Land on ground
-            const playerHeightOffset = blockSize * 1.5; // Distance from feet to center
+            const playerHeightOffset = blockSize * 1.0; 
             if (player.position.y <= floorY + blockSize/2 + playerHeightOffset) {
                 player.position.y = floorY + blockSize/2 + playerHeightOffset;
                 velocityY = 0;
@@ -273,25 +340,26 @@
                 isGrounded = false;
             }
 
-            // Apply X/Z movement if valid
+            // Move X/Z
             player.position.x += moveX;
             player.position.z += moveZ;
-
             player.rotation.y = playerAngle;
 
-            // Simple Walk Animation (Bobbing)
+            // Walk Animation
             if (isMoving && isGrounded) {
                 walkCycle += delta * 10;
                 player.position.y += Math.sin(walkCycle) * 0.1;
             }
 
-            // Camera Follow
+            // 5. Camera Follow
             const camOffset = { x: Math.sin(playerAngle) * 20, y: 12, z: Math.cos(playerAngle) * 20 };
-            camera.position.x += (player.position.x + camOffset.x - camera.position.x) * 0.1;
-            camera.position.y += (player.position.y + camOffset.y - camera.position.y) * 0.1;
-            camera.position.z += (player.position.z + camOffset.z - camera.position.z) * 0.1;
+            camera.position.x += (player.position.x + camOffset.x - camera.position.x) * 0.15;
+            camera.position.y += (player.position.y + camOffset.y - camera.position.y) * 0.15;
+            camera.position.z += (player.position.z + camOffset.z - camera.position.z) * 0.15;
             camera.lookAt(player.position.x, player.position.y + 2, player.position.z);
 
+            // 6. If target is far, draw an arrow or text (Optional)
+            
             renderer.render(scene, camera);
         }
     </script>
