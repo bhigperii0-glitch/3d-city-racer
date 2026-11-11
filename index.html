@@ -3,133 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GTA Minecraft</title>
+    <title>GTA: Minecraft Block City</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
         
-        /* LOGIN */
-        #loginScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
-        #loginScreen h1 { font-size: 20px; color: #ffeb3b; text-shadow: 2px 2px 0 #000; margin-bottom: 20px; text-align: center; }
-        #usernameInput { padding: 15px; font-family: 'Press Start 2P', monospace; font-size: 14px; width: 80%; max-width: 300px; text-align: center; border: 4px solid #555; outline: none; }
-        #playBtn { background: #4caf50; color: white; border: 4px solid #1b5e20; padding: 15px 30px; font-family: 'Press Start 2P', monospace; font-size: 16px; cursor: pointer; margin-top: 20px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); }
-
-        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); display: none; }
+        /* UI */
+        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; display: block; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
         #ui h3 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 2px 2px 0 #000; }
+        .money { color: #4caf50; font-size: 14px; }
+        #missionText { color: #ff5252; font-weight: bold; margin-top: 10px; font-size: 10px; line-height: 1.5;}
 
-        /* GTA MINIMAP */
-        #minimap { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; background: rgba(0,0,0,0.8); border: 4px solid #fff; border-radius: 50%; display: none; z-index: 10; overflow: hidden; }
-        .blip { position: absolute; width: 6px; height: 6px; border-radius: 50%; transform: translate(-50%, -50%); }
-
-        /* CONTROLS */
-        #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10; display: none;}
+        /* Controls */
+        #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10;}
         
-        .left-controls { display: flex; gap: 10px; pointer-events: auto; }
-        .right-controls { display: flex; gap: 10px; pointer-events: auto; flex-direction: column;}
-
-        .d-pad { display: grid; grid-template-columns: 60px 60px; grid-template-rows: 60px 60px; gap: 5px; }
+        .d-pad { display: grid; grid-template-columns: 60px 60px 60px; grid-template-rows: 60px 60px; gap: 5px; pointer-events: auto; }
         .btn { background: #888; color: white; border: 4px solid #333; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 20px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4);}
         .btn:active { background: #555; }
-        .brake-btn { background: #d32f2f; border-color: #b71c1c; width: 80px; height: 80px; border-radius: 50%; font-size: 12px; font-weight: bold; margin-left: 20px;}
+        
+        #actionBtn { position: absolute; bottom: 20px; right: 20px; width: 90px; height: 90px; border-radius: 50%; background: #d32f2f; color: white; border: 4px solid #b71c1c; font-family: 'Press Start 2P', monospace; font-size: 12px; font-weight: bold; pointer-events: auto; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); display: flex; justify-content: center; align-items: center; text-align: center;}
+        #actionBtn:active { background: #b71c1c; }
     </style>
     
     <script src="three.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-    <div id="loginScreen">
-        <h1>GTA: Minecraft</h1>
-        <input type="text" id="usernameInput" placeholder="Steve" maxlength="12">
-        <button id="playBtn" onclick="joinGame()">PLAY</button>
-    </div>
-
     <div id="ui">
-        <h3>🌆 GTA: MC</h3>
-        <p>Players: <span id="playerCount">1</span></p>
+        <h3>🌆 Block City</h3>
+        <p>Cash: <span class="money" id="money">$0</span></p>
+        <p id="missionText">Mission: Find the red target and eliminate them!</p>
     </div>
-
-    <div id="minimap"></div>
 
     <div id="controls">
-        <div class="left-controls">
-            <div class="d-pad">
-                <div class="btn" ontouchstart="setMove('forward', true)" ontouchend="setMove('forward', false)" onmousedown="setMove('forward', true)" onmouseup="setMove('forward', false)">⬆️</div>
-                <div></div>
-                <div class="btn" ontouchstart="setMove('left', true)" ontouchend="setMove('left', false)" onmousedown="setMove('left', true)" onmouseup="setMove('left', false)">⬅️</div>
-                <div class="btn" ontouchstart="setMove('right', true)" ontouchend="setMove('right', false)" onmousedown="setMove('right', true)" onmouseup="setMove('right', false)">➡️</div>
-            </div>
-            <button class="btn brake-btn" ontouchstart="setMove('brake', true)" ontouchend="setMove('brake', false)" onmousedown="setMove('brake', true)" onmouseup="setMove('brake', false)">BRAKE</button>
+        <div class="d-pad">
+            <div></div>
+            <div class="btn" ontouchstart="setMove('forward', true)" ontouchend="setMove('forward', false)" onmousedown="setMove('forward', true)" onmouseup="setMove('forward', false)">⬆️</div>
+            <div></div>
+            <div class="btn" ontouchstart="setMove('left', true)" ontouchend="setMove('left', false)" onmousedown="setMove('left', true)" onmouseup="setMove('left', false)">⬅️</div>
+            <div class="btn" ontouchstart="setMove('backward', true)" ontouchend="setMove('backward', false)" onmousedown="setMove('backward', true)" onmouseup="setMove('backward', false)">⬇️</div>
+            <div class="btn" ontouchstart="setMove('right', true)" ontouchend="setMove('right', false)" onmousedown="setMove('right', true)" onmouseup="setMove('right', false)">➡️</div>
         </div>
     </div>
+    <button id="actionBtn" onclick="doAction()">ACTION</button>
 
     <script>
-        const socket = io();
-        const otherPlayers = {}; 
         let scene, camera, renderer;
-        let carMesh;
-        let isGameStarted = false;
+        let player, playerAngle = 0, playerSpeed = 0;
+        let money = 0;
+        let targetNPC, houseDoor;
+        let keys = { forward: false, backward: false, left: false, right: false };
+        let walls = []; // For collision
         
-        // GTA Driving Physics
-        let speed = 0;
-        let carAngle = 0;
-        let maxSpeed = 4.5; 
-        let acceleration = 0.05;
-        let friction = 0.02;
-        let turnSpeed = 0.045;
-        
-        window.keys = { forward: false, backward: false, left: false, right: false, brake: false };
-
-        // WORLD CHUNKS
-        const CHUNK_SIZE = 120;
-        const RENDER_DISTANCE = 3; // How many chunks to render in each direction
-        let activeChunks = {};
-
-        function joinGame() {
-            let name = document.getElementById('usernameInput').value.trim();
-            if (name === "") name = "Player" + Math.floor(Math.random() * 100);
-            
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('ui').style.display = 'block';
-            document.getElementById('controls').style.display = 'flex';
-            document.getElementById('minimap').style.display = 'block';
-            
-            isGameStarted = true;
-            socket.emit('playerJoin', name);
-            animate();
-        }
-
-        // --- REAL MINECRAFT TEXTURES ---
-        function createMCTexture(baseColor, noiseColor) {
-            const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 16;
-            const ctx = canvas.getContext('2d'); 
-            ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 16, 16);
-            ctx.fillStyle = noiseColor;
-            for(let i=0; i<40; i++) { ctx.fillRect(Math.floor(Math.random()*16), Math.floor(Math.random()*16), 1, 1); }
-            const tex = new THREE.CanvasTexture(canvas); 
-            tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
-            tex.wrapS = tex.wrapT = THREE.RepeatWrapping; 
-            return tex;
-        }
-
-        function createBuildingTexture() {
-            const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 32;
-            const ctx = canvas.getContext('2d'); 
-            ctx.fillStyle = '#607d8b'; ctx.fillRect(0, 0, 16, 32); 
-            ctx.fillStyle = '#90caf9'; 
-            for(let y=4; y<30; y+=6) { for(let x=2; x<14; x+=5) { ctx.fillRect(x, y, 3, 3); } }
-            const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; 
-            return tex;
-        }
-
-        const grassTex = createMCTexture('#5A9E3F', '#4B8832'); grassTex.repeat.set(50, 50);
-        const roadTex = createMCTexture('#333333', '#222222');
-        const sidewalkTex = createMCTexture('#AAAAAA', '#999999');
-        const bldgTex = createBuildingTexture();
+        // Game State
+        let missionComplete = false;
 
         window.onload = function() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x78A7FF); 
-            scene.fog = new THREE.Fog(0x78A7FF, 100, 300); // Far fog for open world
+            scene.fog = new THREE.Fog(0x78A7FF, 50, 200);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -137,225 +68,174 @@
             renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
+            // Lighting
             scene.add(new THREE.AmbientLight(0xffffff, 0.6)); 
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
             dirLight.position.set(50, 100, 50);
             dirLight.castShadow = true;
-            dirLight.shadow.camera.left = -100; dirLight.shadow.camera.right = 100;
-            dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -100;
             scene.add(dirLight);
 
-            // Infinite Ground Plane
-            const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ map: grassTex }));
-            ground.rotation.x = -Math.PI / 2; ground.position.y = -0.1; ground.receiveShadow = true; scene.add(ground);
+            // Ground (Massive solid green floor)
+            const groundGeo = new THREE.PlaneGeometry(500, 500);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x5A9E3F });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
 
-            buildMCCar();
+            // Roads
+            const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const roadH = new THREE.Mesh(new THREE.PlaneGeometry(500, 30), roadMat);
+            roadH.rotation.x = -Math.PI / 2; roadH.position.y = 0.1; scene.add(roadH);
+            const roadV = new THREE.Mesh(new THREE.PlaneGeometry(30, 500), roadMat);
+            roadV.rotation.x = -Math.PI / 2; roadV.position.y = 0.1; scene.add(roadV);
 
-            socket.on('currentPlayers', (players) => {
-                Object.keys(players).forEach((id) => { if (id !== socket.id) addOtherPlayer(players[id]); });
-                document.getElementById('playerCount').innerText = Object.keys(players).length;
-            });
-            socket.on('newPlayer', (playerInfo) => { addOtherPlayer(playerInfo); document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1; });
-            socket.on('playerMoved', (playerInfo) => {
-                if (otherPlayers[playerInfo.id]) {
-                    otherPlayers[playerInfo.id].targetX = playerInfo.x;
-                    otherPlayers[playerInfo.id].targetZ = playerInfo.z;
-                    otherPlayers[playerInfo.id].targetAngle = playerInfo.angle;
-                }
-            });
-            socket.on('playerDisconnected', (id) => {
-                if (otherPlayers[id]) {
-                    scene.remove(otherPlayers[id].mesh); delete otherPlayers[id];
-                    document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1;
-                }
-            });
+            // Build the City
+            createBuilding(-40, -40, 30, 40, 30, 0x607d8b); // Skyscraper
+            createBuilding(40, -40, 25, 20, 25, 0x90a4ae);  // Office
+            createBuilding(-40, 40, 20, 15, 20, 0xd7ccc8);  // Bank
+
+            // Player's House
+            createBuilding(40, 40, 20, 10, 20, 0xf5f5dc);
+            // House Door (Interactive)
+            const doorMat = new THREE.MeshBasicMaterial({ color: 0x4caf50 });
+            houseDoor = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 1), doorMat);
+            houseDoor.position.set(40, 3, 30); // Front of the house
+            scene.add(houseDoor);
+
+            // Create Player (Steve)
+            createPlayer();
+
+            // Create Mission Target (Red Villager)
+            createTarget(20, -20);
+
+            animate();
         };
 
-        function buildMCCar() {
-            carMesh = new THREE.Group();
-            const carMat = new THREE.MeshStandardMaterial({ color: 0x1976d2 });
-            const glassMat = new THREE.MeshStandardMaterial({ color: 0x90caf9, transparent: true, opacity: 0.6 });
+        function createBuilding(x, z, w, h, d, color) {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mat = new THREE.MeshStandardMaterial({ color: color });
+            const bldg = new THREE.Mesh(geo, mat);
+            bldg.position.set(x, h/2, z);
+            bldg.castShadow = true;
+            bldg.receiveShadow = true;
+            scene.add(bldg);
             
-            const body = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), carMat);
-            body.position.y = 0.8; body.castShadow = true; carMesh.add(body);
-            const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 2), glassMat);
-            cabin.position.set(0, 1.7, -0.5); carMesh.add(cabin);
-
-            carMesh.position.set(0, 0, 0); // Start exactly at 0,0
-            scene.add(carMesh);
+            // Add to collision array
+            walls.push({ x, z, w, d });
         }
 
-        function createNameTag(name) {
-            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64;
-            const context = canvas.getContext('2d'); context.font = "24px 'Press Start 2P'";
-            context.fillStyle = "rgba(0,0,0,0.6)"; context.fillRect(0,0,256,64);
-            context.fillStyle = "yellow"; context.textAlign = "center"; context.fillText(name, 128, 40);
-            const texture = new THREE.CanvasTexture(canvas); const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
-            const sprite = new THREE.Sprite(spriteMaterial); sprite.scale.set(8, 2, 1); return sprite;
-        }
-
-        function addOtherPlayer(playerInfo) {
-            const group = new THREE.Group();
-            const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: playerInfo.color }));
-            chassis.position.y = 0.6; group.add(chassis);
-            const cabin = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-            cabin.position.set(0, 1.4, -0.2); group.add(cabin);
-            const nameTag = createNameTag(playerInfo.name); nameTag.position.set(0, 3.5, 0); group.add(nameTag);
-            group.position.set(playerInfo.x, 0, playerInfo.z); scene.add(group);
-            otherPlayers[playerInfo.id] = { mesh: group, targetX: playerInfo.x, targetZ: playerInfo.z, targetAngle: playerInfo.angle };
-        }
-
-        // --- CHUNK GENERATION SYSTEM ---
-        function createChunk(cx, cz) {
-            const chunk = new THREE.Group();
+        function createPlayer() {
+            player = new THREE.Group();
             
-            // Math to check if this chunk should have a road
-            // We make roads on every 3rd chunk
-            const hasHRoad = (cz % 3 === 0);
-            const hasVRoad = (cx % 3 === 0);
+            // Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 1), new THREE.MeshStandardMaterial({ color: 0x1976d2 }));
+            body.position.y = 2; body.castShadow = true; player.add(body);
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshStandardMaterial({ color: 0xffccbc }));
+            head.position.y = 4.25; head.castShadow = true; player.add(head);
+            // Legs
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2, 0.8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+            legL.position.set(-0.5, 1, 0); player.add(legL);
+            const legR = legL.clone(); legR.position.x = 0.5; player.add(legR);
 
-            // Grass is handled by the massive floor, no need to add it here
-
-            // Sidewalks & Roads
-            if (hasHRoad) {
-                const road = new THREE.Mesh(new THREE.BoxGeometry(CHUNK_SIZE, 0.2, 20), new THREE.MeshStandardMaterial({ map: roadTex }));
-                road.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
-                road.receiveShadow = true; chunk.add(road);
-                
-                const sw1 = new THREE.Mesh(new THREE.BoxGeometry(CHUNK_SIZE, 0.4, 4), new THREE.MeshStandardMaterial({ map: sidewalkTex }));
-                sw1.position.set(cx * CHUNK_SIZE, 0.2, cz * CHUNK_SIZE + 12); chunk.add(sw1);
-                const sw2 = new THREE.Mesh(new THREE.BoxGeometry(CHUNK_SIZE, 0.4, 4), new THREE.MeshStandardMaterial({ map: sidewalkTex }));
-                sw2.position.set(cx * CHUNK_SIZE, 0.2, cz * CHUNK_SIZE - 12); chunk.add(sw2);
-            }
-            if (hasVRoad) {
-                const road = new THREE.Mesh(new THREE.BoxGeometry(20, 0.2, CHUNK_SIZE), new THREE.MeshStandardMaterial({ map: roadTex }));
-                road.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
-                road.receiveShadow = true; chunk.add(road);
-                
-                const sw1 = new THREE.Mesh(new THREE.BoxGeometry(4, 0.4, CHUNK_SIZE), new THREE.MeshStandardMaterial({ map: sidewalkTex }));
-                sw1.position.set(cx * CHUNK_SIZE + 12, 0.2, cz * CHUNK_SIZE); chunk.add(sw1);
-                const sw2 = new THREE.Mesh(new THREE.BoxGeometry(4, 0.4, CHUNK_SIZE), new THREE.MeshStandardMaterial({ map: sidewalkTex }));
-                sw2.position.set(cx * CHUNK_SIZE - 12, 0.2, cz * CHUNK_SIZE); chunk.add(sw2);
-            }
-
-            // Buildings (Only if it's not a road)
-            if (!hasHRoad && !hasVRoad) {
-                for(let i=0; i<3; i++) {
-                    const height = 20 + Math.random() * 40;
-                    const b = new THREE.Mesh(new THREE.BoxGeometry(15, height, 15), new THREE.MeshStandardMaterial({ map: bldgTex }));
-                    b.position.set(cx * CHUNK_SIZE + (Math.random()*40 - 20), height/2, cz * CHUNK_SIZE + (Math.random()*40 - 20));
-                    b.castShadow = true; chunk.add(b);
-                }
-            }
-
-            // Trees
-            for(let i=0; i<2; i++) {
-                const tree = new THREE.Group();
-                const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 2), new THREE.MeshStandardMaterial({ color: 0x5d4037 }));
-                trunk.position.y = 3; tree.add(trunk);
-                const leaves = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({ color: 0x2e7d32 }));
-                leaves.position.y = 8; tree.add(leaves);
-                tree.position.set(cx * CHUNK_SIZE + (Math.random()*80 - 40), 0, cz * CHUNK_SIZE + (Math.random()*80 - 40));
-                chunk.add(tree);
-            }
-
-            scene.add(chunk);
-            activeChunks[`${cx},${cz}`] = chunk;
+            player.position.set(0, 0, 10);
+            scene.add(player);
         }
 
-        function updateWorld(playerX, playerZ) {
-            const currentCX = Math.round(playerX / CHUNK_SIZE);
-            const currentCZ = Math.round(playerZ / CHUNK_SIZE);
+        function createTarget(x, z) {
+            targetNPC = new THREE.Group();
+            
+            // Red Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 1), new THREE.MeshStandardMaterial({ color: 0xd32f2f }));
+            body.position.y = 2; body.castShadow = true; targetNPC.add(body);
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshStandardMaterial({ color: 0xffccbc }));
+            head.position.y = 4.25; head.castShadow = true; targetNPC.add(head);
+            
+            // Exclamation mark
+            const mark = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2, 0.5), new THREE.MeshBasicMaterial({ color: 0xffeb3b }));
+            mark.position.y = 6; targetNPC.add(mark);
 
-            // Spawn new chunks
-            for (let x = currentCX - RENDER_DISTANCE; x <= currentCX + RENDER_DISTANCE; x++) {
-                for (let z = currentCZ - RENDER_DISTANCE; z <= currentCZ + RENDER_DISTANCE; z++) {
-                    const key = `${x},${z}`;
-                    if (!activeChunks[key]) {
-                        createChunk(x, z);
-                    }
-                }
-            }
-
-            // Remove far chunks
-            for (let key in activeChunks) {
-                const [cx, cz] = key.split(',').map(Number);
-                if (Math.abs(cx - currentCX) > RENDER_DISTANCE + 1 || Math.abs(cz - currentCZ) > RENDER_DISTANCE + 1) {
-                    scene.remove(activeChunks[key]);
-                    delete activeChunks[key];
-                }
-            }
+            targetNPC.position.set(x, 0, z);
+            scene.add(targetNPC);
         }
 
-        window.setMove = function(dir, isPressed) { if(isGameStarted) keys[dir] = isPressed; }
+        window.setMove = function(dir, isPressed) { keys[dir] = isPressed; }
+
+        function doAction() {
+            const distToTarget = Math.hypot(player.position.x - targetNPC.position.x, player.position.z - targetNPC.position.z);
+            const distToDoor = Math.hypot(player.position.x - houseDoor.position.x, player.position.z - houseDoor.position.z);
+
+            if (distToTarget < 3 && !missionComplete) {
+                // KILL TARGET
+                scene.remove(targetNPC);
+                money += 500;
+                document.getElementById('money').innerText = "$" + money;
+                document.getElementById('missionText').innerText = "Mission Complete! You earned $500.";
+                document.getElementById('missionText').style.color = "#4caf50";
+                missionComplete = true;
+            } else if (distToDoor < 4) {
+                // ENTER HOUSE
+                alert("You entered your house and slept. Health restored!");
+                player.position.set(40, 0, 40); // Teleport inside house
+            } else {
+                alert("Nothing to do here. Find the red target!");
+            }
+        }
 
         const clock = new THREE.Clock();
-        
+        let walkCycle = 0;
+
         function animate() {
-            if(!isGameStarted) return;
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
-            // GTA PHYSICS
-            if (keys['brake']) {
-                speed *= 0.9; // Strong friction
-            } else if (keys['forward']) {
-                speed += acceleration;
-            } else if (keys['backward']) {
-                speed -= acceleration;
+            // Movement Physics
+            let moveSpeed = 10 * delta;
+            let isMoving = false;
+
+            if (keys['forward']) { 
+                player.position.x -= Math.sin(playerAngle) * moveSpeed; 
+                player.position.z -= Math.cos(playerAngle) * moveSpeed; 
+                isMoving = true;
+            }
+            if (keys['backward']) { 
+                player.position.x += Math.sin(playerAngle) * moveSpeed; 
+                player.position.z += Math.cos(playerAngle) * moveSpeed; 
+                isMoving = true;
+            }
+            if (keys['left']) { playerAngle += 0.05; isMoving = true; }
+            if (keys['right']) { playerAngle -= 0.05; isMoving = true; }
+
+            player.rotation.y = playerAngle;
+
+            // Simple Walk Animation (Bobbing)
+            if (isMoving) {
+                walkCycle += delta * 10;
+                player.children[2].rotation.x = Math.sin(walkCycle) * 0.5; // Left leg
+                player.children[3].rotation.x = -Math.sin(walkCycle) * 0.5; // Right leg
             } else {
-                speed *= (1 - friction);
-            }
-            speed = Math.max(-maxSpeed/2, Math.min(maxSpeed, speed));
-
-            // Steering (Only turn if moving)
-            if (Math.abs(speed) > 0.1) {
-                if (keys['left']) carAngle += turnSpeed * (speed > 0 ? 1 : -1);
-                if (keys['right']) carAngle -= turnSpeed * (speed > 0 ? 1 : -1);
+                player.children[2].rotation.x = 0;
+                player.children[3].rotation.x = 0;
             }
 
-            // Move in any direction
-            carMesh.position.x -= Math.sin(carAngle) * speed;
-            carMesh.position.z -= Math.cos(carAngle) * speed;
-            carMesh.rotation.y = carAngle;
-
-            // Update Multiplayer
-            socket.emit('playerMovement', { x: carMesh.position.x, z: carMesh.position.z, angle: carAngle });
-            Object.keys(otherPlayers).forEach(id => {
-                const p = otherPlayers[id];
-                p.mesh.position.x += (p.targetX - p.mesh.position.x) * 0.2;
-                p.mesh.position.z += (p.targetZ - p.mesh.position.z) * 0.2;
-                p.mesh.rotation.y = p.targetAngle;
-            });
-
-            // Update World Chunks
-            updateWorld(carMesh.position.x, carMesh.position.z);
-
-            // Camera Follow
-            const camOffset = { x: Math.sin(carAngle) * 15, y: 9, z: Math.cos(carAngle) * 15 };
-            camera.position.x += (carMesh.position.x + camOffset.x - camera.position.x) * 0.1;
-            camera.position.y += (carMesh.position.y + camOffset.y - camera.position.y) * 0.1;
-            camera.position.z += (carMesh.position.z + camOffset.z - camera.position.z) * 0.1;
-            camera.lookAt(carMesh.position.x, carMesh.position.y + 1.5, carMesh.position.z);
-
-            // UPDATE MINIMAP (Simple Radar)
-            const minimap = document.getElementById('minimap');
-            minimap.innerHTML = '<div class="blip" style="background:blue; top:50%; left:50%;"></div>'; // You
-            Object.keys(otherPlayers).forEach(id => {
-                const p = otherPlayers[id];
-                const dx = p.targetX - carMesh.position.x;
-                const dz = p.targetZ - carMesh.position.z;
-                const dist = Math.hypot(dx, dz);
-                if (dist < 100) {
-                    const blip = document.createElement('div');
-                    blip.className = 'blip';
-                    blip.style.background = 'red';
-                    // Map 100 units to 60 pixels (radius of map)
-                    blip.style.left = `${50 + (dx / 100) * 50}%`;
-                    blip.style.top = `${50 + (dz / 100) * 50}%`;
-                    minimap.appendChild(blip);
+            // Simple Wall Collision
+            walls.forEach(wall => {
+                const buffer = 1.5;
+                if (player.position.x > wall.x - wall.w/2 - buffer && player.position.x < wall.x + wall.w/2 + buffer &&
+                    player.position.z > wall.z - wall.d/2 - buffer && player.position.z < wall.z + wall.d/2 + buffer) {
+                    // Push player out (very simple)
+                    player.position.z += Math.cos(playerAngle) * moveSpeed; 
                 }
             });
+
+            // Camera Follow (Third Person)
+            const camOffset = { x: Math.sin(playerAngle) * 12, y: 8, z: Math.cos(playerAngle) * 12 };
+            camera.position.x += (player.position.x + camOffset.x - camera.position.x) * 0.1;
+            camera.position.y += (player.position.y + camOffset.y - camera.position.y) * 0.1;
+            camera.position.z += (player.position.z + camOffset.z - camera.position.z) * 0.1;
+            camera.lookAt(player.position.x, player.position.y + 2, player.position.z);
 
             renderer.render(scene, camera);
         }
