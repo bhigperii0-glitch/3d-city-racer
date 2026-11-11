@@ -9,24 +9,24 @@ const io = new Server(server);
 const port = process.env.PORT || 3000;
 
 app.use(express.static(__dirname));
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 
 const players = {};
 
 io.on('connection', (socket) => {
-    const names = ["Steve", "Alex", "Creeper", "Miner", "Racer", "Blocky"];
-    players[socket.id] = {
-        id: socket.id,
-        name: names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 100),
-        x: 0, z: 0, angle: 0,
-        color: Math.floor(Math.random() * 0xffffff)
-    };
+    // Wait for the player to send their username
+    socket.on('playerJoin', (username) => {
+        players[socket.id] = {
+            id: socket.id,
+            name: username,
+            x: 0, z: 0, angle: 0,
+            color: Math.floor(Math.random() * 0xffffff) // Random car color
+        };
 
-    socket.emit('currentPlayers', players);
-    socket.broadcast.emit('newPlayer', players[socket.id]);
+        // Send current players to the new player, and tell everyone else
+        socket.emit('currentPlayers', players);
+        socket.broadcast.emit('newPlayer', players[socket.id]);
+    });
 
     socket.on('playerMovement', (d) => {
         if(players[socket.id]) {
@@ -38,8 +38,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        delete players[socket.id];
-        io.emit('playerDisconnected', socket.id);
+        if(players[socket.id]) {
+            delete players[socket.id];
+            io.emit('playerDisconnected', socket.id);
+        }
     });
 });
 

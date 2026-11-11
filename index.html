@@ -8,11 +8,17 @@
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
         
-        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
+        /* LOGIN SCREEN */
+        #loginScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        #loginScreen h1 { font-size: 20px; color: #ffeb3b; text-shadow: 2px 2px 0 #000; margin-bottom: 20px; text-align: center; }
+        #usernameInput { padding: 15px; font-family: 'Press Start 2P', monospace; font-size: 14px; width: 80%; max-width: 300px; text-align: center; border: 4px solid #555; outline: none; }
+        #playBtn { background: #4caf50; color: white; border: 4px solid #1b5e20; padding: 15px 30px; font-family: 'Press Start 2P', monospace; font-size: 16px; cursor: pointer; margin-top: 20px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); }
+        #playBtn:active { background: #388e3c; }
+
+        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); display: none; }
         #ui h3 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 2px 2px 0 #000; }
         
-        /* Controls only, no steering wheel */
-        #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10;}
+        #controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10; display: none;}
         .d-pad { display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; gap: 5px; pointer-events: auto; }
         .btn { background: #888; color: white; border: 4px solid #333; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4);}
         .btn:active { background: #555; }
@@ -22,8 +28,15 @@
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen">
+        <h1>Enter Your Username</h1>
+        <input type="text" id="usernameInput" placeholder="Steve" maxlength="12">
+        <button id="playBtn" onclick="joinGame()">PLAY</button>
+    </div>
+
     <div id="ui">
-        <h3>🌍 Endless City HD</h3>
+        <h3>🌍 Endless City</h3>
         <p>Players: <span id="playerCount">1</span></p>
         <p style="color:#ff5252; font-size:8px; margin-top:5px;">Watch out for traffic!</p>
     </div>
@@ -44,6 +57,7 @@
         const otherPlayers = {}; 
         let scene, camera, renderer;
         let carMesh;
+        let isGameStarted = false;
         
         let speed = 0;
         let carAngle = 0;
@@ -54,7 +68,6 @@
         
         window.keys = { forward: false, backward: false, left: false, right: false };
 
-        // WORLD VARIABLES
         const roadLength = 100;
         const numTiles = 15;
         let roadTiles = [];
@@ -63,51 +76,62 @@
         let pedestrians = [];
         let trees = [];
 
+        // LOGIN LOGIC
+        function joinGame() {
+            let name = document.getElementById('usernameInput').value.trim();
+            if (name === "") name = "Player" + Math.floor(Math.random() * 100);
+            
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('controls').style.display = 'flex';
+            
+            isGameStarted = true;
+            socket.emit('playerJoin', name);
+            animate();
+        }
+
         window.onload = function() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB); 
-            // Better fog for depth
-            scene.fog = new THREE.Fog(0x87CEEB, 60, 200);
+            scene.fog = new THREE.Fog(0x87CEEB, 80, 250);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Better shadows
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Better Lighting
             scene.add(new THREE.AmbientLight(0xffffff, 0.6)); 
-            const dirLight = new THREE.DirectionalLight(0xfff5e6, 0.8); // Warm sun
+            const dirLight = new THREE.DirectionalLight(0xfff5e6, 0.8);
             dirLight.position.set(50, 100, 50);
             dirLight.castShadow = true;
             dirLight.shadow.mapSize.width = 1024;
             dirLight.shadow.mapSize.height = 1024;
             scene.add(dirLight);
 
-            // HD MINECRAFT TEXTURES
-            const grassTex = makeMinecraftTexture('#4caf50', '#388e3c', 30);
+            const grassTex = makeMinecraftTexture('#4caf50', '#388e3c', 100); // Massive repeat for infinite look
             const roadTex = makeMinecraftTexture('#333333', '#222222', 15);
             const buildingTex = makeMinecraftTexture('#90a4ae', '#607d8b', 5);
             const windowTex = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
 
-            // INITIAL GENERATION
+            // --- INFINITE GRASS FIX ---
+            // Instead of recycling grass tiles, we use one massive floor that goes on forever.
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ map: grassTex }));
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -1;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // --- ROAD & BUILDINGS RECYCLING ---
             for (let i = 0; i < numTiles; i++) {
                 const zPos = -i * roadLength;
 
-                // ENDLESS GRASS (Z-Axis stretching)
-                const grass = new THREE.Mesh(new THREE.BoxGeometry(300, 2, roadLength), new THREE.MeshStandardMaterial({ map: grassTex }));
-                grass.position.set(0, -1, zPos);
-                grass.receiveShadow = true;
-                scene.add(grass);
-
-                // Road
                 const road = new THREE.Mesh(new THREE.BoxGeometry(30, 0.2, roadLength), new THREE.MeshStandardMaterial({ map: roadTex }));
                 road.position.set(0, 0, zPos);
                 road.receiveShadow = true;
                 scene.add(road);
                 
-                // Road Lines
                 const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
                 for(let lz = 0; lz < roadLength; lz += 10) {
                     const line = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 5), lineMat);
@@ -115,56 +139,35 @@
                     scene.add(line);
                 }
 
-                roadTiles.push({ road: road, grass: grass });
+                roadTiles.push({ road: road });
 
-                // HIGH-RISE BUILDINGS WITH WINDOWS
                 for (let b = 0; b < 2; b++) {
-                    const bHeight = 20 + Math.random() * 50; // Taller buildings
+                    const bHeight = 20 + Math.random() * 50;
                     const bWidth = 15 + Math.random() * 10;
                     const bDepth = 15 + Math.random() * 15;
                     const bZ = zPos - (Math.random() * roadLength);
 
-                    // Left Building
                     const leftB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, bDepth), new THREE.MeshStandardMaterial({ map: buildingTex }));
                     leftB.position.set(-35 - Math.random()*10, bHeight/2, bZ);
                     leftB.castShadow = true; leftB.receiveShadow = true;
                     scene.add(leftB); buildings.push(leftB);
 
-                    // Window effect (simple glowing blocks)
-                    const win = new THREE.Mesh(new THREE.BoxGeometry(bWidth*0.8, bHeight*0.8, bDepth+0.1), windowTex);
-                    win.position.set(leftB.position.x, leftB.position.y, leftB.position.z);
-                    scene.add(win); buildings.push(win);
-
-                    // Right Building
                     const rightB = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, bDepth), new THREE.MeshStandardMaterial({ map: buildingTex }));
                     rightB.position.set(35 + Math.random()*10, bHeight/2, bZ);
                     rightB.castShadow = true; rightB.receiveShadow = true;
                     scene.add(rightB); buildings.push(rightB);
-                    
-                    const win2 = new THREE.Mesh(new THREE.BoxGeometry(bWidth*0.8, bHeight*0.8, bDepth+0.1), windowTex);
-                    win2.position.set(rightB.position.x, rightB.position.z, rightB.position.z);
-                    scene.add(win2); buildings.push(win2);
                 }
 
-                // TREES ON THE GRASS
                 for (let t = 0; t < 3; t++) {
                     const tree = createTree();
-                    tree.position.set(
-                        (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 20), 
-                        0, 
-                        zPos - (Math.random() * roadLength)
-                    );
-                    scene.add(tree);
-                    trees.push(tree);
+                    tree.position.set((Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 30), 0, zPos - (Math.random() * roadLength));
+                    scene.add(tree); trees.push(tree);
                 }
             }
 
-            // SPAWN BOT CARS (AI Traffic)
             for (let i = 0; i < 15; i++) spawnBotCar(-Math.random() * 1000);
-            // SPAWN PEDESTRIANS
             for (let i = 0; i < 30; i++) spawnPedestrian(-Math.random() * 1000);
 
-            // PLAYER CAR
             carMesh = new THREE.Group();
             const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: 0x1976d2, metalness: 0.5 }));
             chassis.position.y = 0.6; chassis.castShadow = true; carMesh.add(chassis);
@@ -173,12 +176,15 @@
             carMesh.position.set(0, 0, 10);
             scene.add(carMesh);
 
-            // MULTIPLAYER
+            // SOCKET LISTENERS
             socket.on('currentPlayers', (players) => {
                 Object.keys(players).forEach((id) => { if (id !== socket.id) addOtherPlayer(players[id]); });
                 document.getElementById('playerCount').innerText = Object.keys(players).length;
             });
-            socket.on('newPlayer', (playerInfo) => { addOtherPlayer(playerInfo); document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1; });
+            socket.on('newPlayer', (playerInfo) => { 
+                addOtherPlayer(playerInfo); 
+                document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1; 
+            });
             socket.on('playerMoved', (playerInfo) => {
                 if (otherPlayers[playerInfo.id]) {
                     otherPlayers[playerInfo.id].targetX = playerInfo.x;
@@ -193,8 +199,6 @@
                     document.getElementById('playerCount').innerText = Object.keys(otherPlayers).length + 1;
                 }
             });
-
-            animate();
         };
 
         function makeMinecraftTexture(color1, color2, repeat) {
@@ -212,10 +216,44 @@
             const tree = new THREE.Group();
             const trunk = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 2), new THREE.MeshStandardMaterial({ color: 0x5d4037 }));
             trunk.position.y = 3; trunk.castShadow = true; tree.add(trunk);
-            
             const leaves = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({ color: 0x2e7d32 }));
             leaves.position.y = 8; leaves.castShadow = true; tree.add(leaves);
             return tree;
+        }
+
+        // CREATE NAME TAG ABOVE CAR
+        function createNameTag(name) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 64;
+            const context = canvas.getContext('2d');
+            context.font = "24px 'Press Start 2P'";
+            context.fillStyle = "rgba(0,0,0,0.6)";
+            context.fillRect(0,0,256,64);
+            context.fillStyle = "yellow";
+            context.textAlign = "center";
+            context.fillText(name, 128, 40);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(8, 2, 1);
+            return sprite;
+        }
+
+        function addOtherPlayer(playerInfo) {
+            const group = new THREE.Group();
+            const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: playerInfo.color }));
+            chassis.position.y = 0.6; group.add(chassis);
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+            cabin.position.set(0, 1.4, -0.2); group.add(cabin);
+            
+            // Add Name Tag
+            const nameTag = createNameTag(playerInfo.name);
+            nameTag.position.set(0, 3.5, 0);
+            group.add(nameTag);
+
+            group.position.set(playerInfo.x, 0, playerInfo.z);
+            scene.add(group);
+            otherPlayers[playerInfo.id] = { mesh: group, targetX: playerInfo.x, targetZ: playerInfo.z, targetAngle: playerInfo.angle };
         }
 
         function spawnBotCar(zPos) {
@@ -223,7 +261,7 @@
             const colors = [0xd32f2f, 0x388e3c, 0xfbc02d, 0xffffff];
             const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random()*colors.length)] }));
             chassis.position.y = 0.6; bot.add(chassis);
-            bot.position.set(7, 0, zPos); // Right lane
+            bot.position.set(7, 0, zPos);
             scene.add(bot);
             botCars.push({ mesh: bot, speed: 0.8 + Math.random() * 1.2 });
         }
@@ -234,30 +272,18 @@
             body.position.y = 0.6; body.castShadow = true; ped.add(body);
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0xffccbc }));
             head.position.y = 1.45; ped.add(head);
-            
-            // Walk on the grass, far from road
             const side = Math.random() > 0.5 ? 1 : -1;
             ped.position.set(side * (22 + Math.random() * 15), 0, zPos);
             scene.add(ped);
             pedestrians.push({ mesh: ped, speed: 0.1 + Math.random() * 0.2 });
         }
 
-        function addOtherPlayer(playerInfo) {
-            const group = new THREE.Group();
-            const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.5), new THREE.MeshStandardMaterial({ color: playerInfo.color }));
-            chassis.position.y = 0.6; group.add(chassis);
-            const cabin = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-            cabin.position.set(0, 1.4, -0.2); group.add(cabin);
-            group.position.set(playerInfo.x, 0, playerInfo.z);
-            scene.add(group);
-            otherPlayers[playerInfo.id] = { mesh: group, targetX: playerInfo.x, targetZ: playerInfo.z, targetAngle: playerInfo.angle };
-        }
-
-        window.setMove = function(dir, isPressed) { keys[dir] = isPressed; }
+        window.setMove = function(dir, isPressed) { if(isGameStarted) keys[dir] = isPressed; }
 
         const clock = new THREE.Clock();
         
         function animate() {
+            if(!isGameStarted) return;
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
@@ -275,8 +301,8 @@
             carMesh.position.z -= Math.cos(carAngle) * speed;
             carMesh.rotation.y = carAngle;
 
-            // Multiplayer Sync
             socket.emit('playerMovement', { x: carMesh.position.x, z: carMesh.position.z, angle: carAngle });
+            
             Object.keys(otherPlayers).forEach(id => {
                 const p = otherPlayers[id];
                 p.mesh.position.x += (p.targetX - p.mesh.position.x) * 0.2;
@@ -286,12 +312,9 @@
 
             const currentZ = carMesh.position.z;
 
-            // RECYCLING (Infinity)
             roadTiles.forEach((tile) => {
                 if (tile.road.position.z > currentZ + 100) {
-                    const newZ = tile.road.position.z - (numTiles * roadLength);
-                    tile.road.position.z = newZ;
-                    tile.grass.position.z = newZ;
+                    tile.road.position.z -= (numTiles * roadLength);
                 }
             });
 
@@ -305,7 +328,7 @@
             trees.forEach(t => {
                 if (t.position.z > currentZ + 100) {
                     t.position.z -= (numTiles * roadLength);
-                    t.position.x = (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 20);
+                    t.position.x = (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 30);
                 }
             });
 
@@ -313,9 +336,7 @@
                 car.mesh.position.z -= car.speed;
                 const distX = Math.abs(carMesh.position.x - car.mesh.position.x);
                 const distZ = Math.abs(carMesh.position.z - car.mesh.position.z);
-                if (distX < 2.5 && distZ < 4.5) {
-                    speed = 0; car.mesh.position.z -= 10; 
-                }
+                if (distX < 2.5 && distZ < 4.5) { speed = 0; car.mesh.position.z -= 10; }
                 if (car.mesh.position.z < currentZ - (numTiles * roadLength)) {
                     car.mesh.position.z = currentZ - 100;
                     car.mesh.position.x = 7; 
@@ -332,7 +353,6 @@
                 }
             });
 
-            // Camera Follow
             const camOffset = { x: Math.sin(carAngle) * 12, y: 8, z: Math.cos(carAngle) * 12 };
             camera.position.x += (carMesh.position.x + camOffset.x - camera.position.x) * 0.1;
             camera.position.y += (carMesh.position.y + camOffset.y - camera.position.y) * 0.1;
