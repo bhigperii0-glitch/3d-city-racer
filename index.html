@@ -3,27 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GTA Minecraft: Endless World</title>
+    <title>GTA Minecraft: Survival</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin: 0; overflow: hidden; background-color: #78A7FF; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
         
-        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 15px; border: 4px solid #555; font-size: 10px; z-index: 10; box-shadow: inset 4px 4px 0 rgba(255,255,255,0.2); }
-        #ui h3 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 2px 2px 0 #000; }
-        .money { color: #4caf50; font-size: 14px; }
-        #missionText { color: #ff5252; font-weight: bold; margin-top: 10px; font-size: 10px; line-height: 1.5;}
-        #resetBtn { background: #333; color: #ff5252; border: 2px solid #555; font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 5px; margin-top: 10px; cursor: pointer; display: block; width: 100%;}
+        /* SURVIVAL UI */
+        #statsUI { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.8); padding: 10px; border: 4px solid #555; font-size: 10px; z-index: 10; width: 200px;}
+        .stat-row { display: flex; align-items: center; margin-bottom: 8px; }
+        .stat-label { width: 60px; }
+        .bar-bg { flex: 1; height: 10px; background: #333; border: 1px solid #000; position: relative; }
+        .bar-fill { height: 100%; transition: width 0.3s; }
+        #hpFill { background: #d32f2f; width: 100%; }
+        #hungerFill { background: #ff9800; width: 100%; }
+        #thirstFill { background: #29b6f6; width: 100%; }
         
-        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 30px; font-weight: bold; pointer-events: none; z-index: 5; opacity: 0.7; text-shadow: 0 0 5px black;}
+        #topRightUI { position: absolute; top: 10px; right: 10px; color: white; background: rgba(0,0,0,0.8); padding: 10px; border: 4px solid #555; font-size: 10px; z-index: 10; text-align: right; }
+        .money { color: #4caf50; font-size: 14px; }
+        #weatherIcon { font-size: 20px; margin-top: 5px; display: block;}
+        
+        #missionText { position: absolute; top: 100px; left: 10px; color: #ff5252; font-weight: bold; font-size: 10px; z-index: 10; width: 200px; line-height: 1.5; text-shadow: 1px 1px 0 #000;}
 
+        /* CROSSHAIR & JOYSTICK */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 30px; font-weight: bold; pointer-events: none; z-index: 5; opacity: 0.7; text-shadow: 0 0 5px black;}
         #joystick-container { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; background: rgba(0,0,0,0.3); border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; pointer-events: auto; z-index: 10; display: flex; justify-content: center; align-items: center;}
         #joystick-knob { width: 60px; height: 60px; background: rgba(255,255,255,0.6); border-radius: 50%; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.8); transition: transform 0.1s; }
 
-        .action-container { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; z-index: 10;}
-        .action-btn { width: 70px; height: 70px; border-radius: 50%; color: white; border: 4px solid #222; font-family: 'Press Start 2P', monospace; font-size: 10px; font-weight: bold; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); display: flex; justify-content: center; align-items: center; text-align: center;}
+        /* ACTIONS */
+        .action-container { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; pointer-events: auto; z-index: 10; align-items: flex-end;}
+        .action-btn { width: 65px; height: 65px; border-radius: 50%; color: white; border: 4px solid #222; font-family: 'Press Start 2P', monospace; font-size: 10px; font-weight: bold; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.4); display: flex; justify-content: center; align-items: center; text-align: center;}
         #jumpBtn { background: #1976d2; }
-        #actionBtn { background: #d32f2f; }
-        #mineBtn { background: #ff9800; width: 55px; height: 55px; }
+        #mineBtn { background: #ff9800; }
+        #attackBtn { background: #d32f2f; }
+        #shopBtn { background: #4caf50; width: 50px; height: 50px; font-size: 8px;}
+
+        /* SHOP MODAL */
+        #shopModal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 50; color: white;}
+        .shop-box { background: #333; border: 4px solid #fff; padding: 20px; width: 80%; max-width: 300px; text-align: center;}
+        .shop-box h2 { color: #ffeb3b; font-size: 14px; margin-bottom: 20px;}
+        .shop-item { background: #555; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; cursor: pointer; border: 2px solid #777;}
+        .shop-item:active { background: #777; }
+        #closeShop { background: #d32f2f; color: white; padding: 10px; font-family: 'Press Start 2P', monospace; font-size: 10px; border: none; width: 100%; margin-top: 10px; cursor: pointer;}
+        
+        #gameOver { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: red; }
+        #gameOver h1 { font-size: 30px; text-shadow: 2px 2px 0 #000; margin-bottom: 20px;}
+        #restartBtn { background: #4caf50; color: white; padding: 15px 30px; font-family: 'Press Start 2P', monospace; font-size: 14px; border: none; cursor: pointer;}
     </style>
     
     <script src="three.min.js"></script>
@@ -31,27 +55,58 @@
 <body>
     <div id="crosshair">+</div>
 
-    <div id="ui">
-        <h3>⛏️ Endless MC</h3>
-        <p>Cash: <span class="money" id="money">$0</span></p>
-        <p id="missionText">Survive the Zombies! Find the red target!</p>
-        <button id="resetBtn" onclick="resetWorld()">RESET WORLD</button>
+    <!-- SURVIVAL UI -->
+    <div id="statsUI">
+        <div class="stat-row"><div class="stat-label">❤️ HP</div><div class="bar-bg"><div id="hpFill" class="bar-fill"></div></div></div>
+        <div class="stat-row"><div class="stat-label">🍖 Food</div><div class="bar-bg"><div id="hungerFill" class="bar-fill"></div></div></div>
+        <div class="stat-row"><div class="stat-label">💧 Water</div><div class="bar-bg"><div id="thirstFill" class="bar-fill"></div></div></div>
+        <div class="stat-row"><div class="stat-label">🪵 Wood</div><div class="stat-label" id="woodAmt" style="text-align:right; width:auto;">0</div></div>
     </div>
 
-    <div id="joystick-container">
-        <div id="joystick-knob"></div>
+    <div id="topRightUI">
+        <div class="money" id="money">$0</div>
+        <span id="weatherIcon">☀️</span>
     </div>
 
+    <div id="missionText">Survive, gather wood, and fight beasts!</div>
+
+    <!-- JOYSTICK -->
+    <div id="joystick-container"><div id="joystick-knob"></div></div>
+
+    <!-- ACTIONS -->
     <div class="action-container">
-        <button id="mineBtn" class="action-btn" onclick="mineBlock()">MINE</button>
+        <button id="shopBtn" class="action-btn" onclick="toggleShop()">SHOP</button>
         <button id="jumpBtn" class="action-btn" onclick="jump()">JUMP</button>
-        <button id="actionBtn" class="action-btn" onclick="doAction()">KILL</button>
+        <button id="mineBtn" class="action-btn" onclick="mineBlock()">MINE</button>
+        <button id="attackBtn" class="action-btn" onclick="doAction()">ATTACK</button>
+    </div>
+
+    <!-- SHOP MODAL -->
+    <div id="shopModal">
+        <div class="shop-box">
+            <h2>🏪 Survival Shop</h2>
+            <div class="shop-item" onclick="buyItem('food')">🍖 Food (+40 Hunger) <span>$15</span></div>
+            <div class="shop-item" onclick="buyItem('water')">💧 Water (+40 Thirst) <span>$10</span></div>
+            <div class="shop-item" onclick="buyItem('potion')">🧪 Potion (+50 HP) <span>$50</span></div>
+            <button id="closeShop" onclick="toggleShop()">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameOver">
+        <h1>YOU DIED</h1>
+        <p style="color:white; font-size:12px; margin-bottom:20px;">The wilderness is unforgiving.</p>
+        <button id="restartBtn" onclick="restartGame()">PLAY AGAIN</button>
     </div>
 
     <script>
         let scene, camera, renderer, raycaster;
         let player, playerAngle = 0;
-        let money = 0;
+        
+        // SURVIVAL STATE
+        let stats = { hp: 100, hunger: 100, thirst: 100, money: 0, wood: 0 };
+        let isGameOver = false;
+        
         let targetNPC, houseDoor;
         let isGrounded = false;
         let velocityY = 0;
@@ -63,50 +118,35 @@
         const RENDER_DISTANCE = 2; 
         let activeChunks = {};
         let allBlocks = []; 
-        
-        // NEW ARRAYS FOR CLOUDS & ENEMIES
         let clouds = [];
-        let enemies = []; 
+        let enemies = []; // Zombies & Wolves
+        let animals = []; // Deer (run away)
 
-        let missionComplete = false;
         let minedBlocks = new Set(JSON.parse(localStorage.getItem('minedBlocks')) || []);
+        let joyMoveX = 0, joyMoveZ = 0;
 
-        let joyMoveX = 0;
-        let joyMoveZ = 0;
+        // Weather
+        let weatherTimer = 0;
+        let currentWeather = 'Clear';
 
-        function resetWorld() {
-            localStorage.removeItem('minedBlocks');
-            location.reload();
-        }
-
+        // Textures
         function createMCTexture(baseColor, noiseColor) {
             const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d'); 
             ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 64, 64);
             ctx.fillStyle = noiseColor;
             for(let i=0; i<200; i++) { ctx.fillRect(Math.floor(Math.random()*64), Math.floor(Math.random()*64), 4, 4); }
-            const tex = new THREE.CanvasTexture(canvas); 
-            tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+            const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
             return tex;
         }
-
         function createFaceTexture(skinColor, hairColor, isZombie = false) {
             const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d'); 
             ctx.fillStyle = skinColor; ctx.fillRect(0, 0, 64, 64);
             ctx.fillStyle = hairColor; ctx.fillRect(0, 0, 64, 20); ctx.fillRect(0, 20, 12, 15); ctx.fillRect(52, 20, 12, 15); 
-            
-            if (isZombie) {
-                // Zombie eyes (black holes)
-                ctx.fillStyle = '#111'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12);
-            } else {
-                // Normal eyes
-                ctx.fillStyle = '#ffffff'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12);
-                ctx.fillStyle = '#000000'; ctx.fillRect(18, 32, 4, 4); ctx.fillRect(42, 32, 4, 4);
-            }
-
-            ctx.fillStyle = '#d7a391'; ctx.fillRect(30, 36, 4, 6);
-            ctx.fillStyle = '#a33'; ctx.fillRect(24, 48, 16, 4);
+            if (isZombie) { ctx.fillStyle = '#111'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12); } 
+            else { ctx.fillStyle = '#fff'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12); ctx.fillStyle = '#000'; ctx.fillRect(18, 32, 4, 4); ctx.fillRect(42, 32, 4, 4); }
+            ctx.fillStyle = '#d7a391'; ctx.fillRect(30, 36, 4, 6); ctx.fillStyle = '#a33'; ctx.fillRect(24, 48, 16, 4);
             const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; return tex;
         }
 
@@ -115,10 +155,9 @@
         const texStone = createMCTexture('#888888', '#666666');
         const texWood = createMCTexture('#5D4037', '#3E2723');
         const texLeaves = createMCTexture('#4CAF50', '#2E7D32');
-        
         const faceTexSteve = createFaceTexture('#ffccbc', '#3E2723');
         const faceTexTarget = createFaceTexture('#8d5524', '#000000');
-        const faceTexZombie = createFaceTexture('#4CAF50', '#2E7D32', true); // Green skin zombie
+        const faceTexZombie = createFaceTexture('#4CAF50', '#2E7D32', true);
 
         window.onload = function() {
             scene = new THREE.Scene();
@@ -126,8 +165,6 @@
             scene.fog = new THREE.Fog(0x78A7FF, 50, 120); 
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 20, -10); 
-
             renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" }); 
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
@@ -138,30 +175,21 @@
             const dirLight = new THREE.DirectionalLight(0xfff5e6, 0.8);
             dirLight.position.set(50, 100, 50);
             dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 512; 
-            dirLight.shadow.mapSize.height = 512;
+            dirLight.shadow.mapSize.width = 512; dirLight.shadow.mapSize.height = 512;
             scene.add(dirLight);
 
-            // CLOUDS GENERATION
+            // Clouds
             const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
             for(let i=0; i<60; i++) {
                 const cloud = new THREE.Mesh(new THREE.BoxGeometry(20 + Math.random()*30, 4, 20 + Math.random()*30), cloudMat);
                 cloud.position.set(Math.random()*400 - 200, 80 + Math.random()*20, Math.random()*400 - 200);
-                scene.add(cloud);
-                clouds.push(cloud);
+                scene.add(cloud); clouds.push(cloud);
             }
 
-            raycaster = new THREE.Raycaster();
-            raycaster.far = 20; 
+            raycaster = new THREE.Raycaster(); raycaster.far = 20; 
 
             updateChunks(0, 0); 
             createPlayer();
-            
-            setTimeout(() => {
-                createTarget(10, -10, 2);
-                buildHouse(0, 0);
-            }, 1000);
-
             setupJoystick();
             animate();
         };
@@ -169,41 +197,17 @@
         function setupJoystick() {
             const container = document.getElementById('joystick-container');
             const knob = document.getElementById('joystick-knob');
-            let isDragging = false;
-            let center = { x: 0, y: 0 };
-
-            container.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                isDragging = true;
-                const rect = container.getBoundingClientRect();
-                center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-            });
-
+            let isDragging = false, center = { x: 0, y: 0 };
+            container.addEventListener('touchstart', (e) => { e.preventDefault(); isDragging = true; const rect = container.getBoundingClientRect(); center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; });
             document.addEventListener('touchmove', (e) => {
-                if (!isDragging) return;
-                e.preventDefault();
-                const touch = e.touches[0];
-                let dx = touch.clientX - center.x;
-                let dy = touch.clientY - center.y;
-                
-                const maxDist = 30;
-                const dist = Math.hypot(dx, dy);
-                if (dist > maxDist) {
-                    dx = (dx / dist) * maxDist;
-                    dy = (dy / dist) * maxDist;
-                }
-
+                if (!isDragging) return; e.preventDefault();
+                const touch = e.touches[0]; let dx = touch.clientX - center.x; let dy = touch.clientY - center.y;
+                const maxDist = 30; const dist = Math.hypot(dx, dy);
+                if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
                 knob.style.transform = `translate(${dx}px, ${dy}px)`;
-                joyMoveX = dx / maxDist;
-                joyMoveZ = -dy / maxDist; 
+                joyMoveX = dx / maxDist; joyMoveZ = -dy / maxDist; 
             });
-
-            document.addEventListener('touchend', () => {
-                isDragging = false;
-                knob.style.transform = `translate(0px, 0px)`;
-                joyMoveX = 0;
-                joyMoveZ = 0;
-            });
+            document.addEventListener('touchend', () => { isDragging = false; knob.style.transform = `translate(0px, 0px)`; joyMoveX = 0; joyMoveZ = 0; });
         }
 
         function generateChunk(cx, cz) {
@@ -214,51 +218,49 @@
                 for (let z = 0; z < CHUNK_SIZE; z++) {
                     const worldX = cx * CHUNK_SIZE + x;
                     const worldZ = cz * CHUNK_SIZE + z;
-                    
                     let height = Math.floor(Math.sin(worldX / 4) * 1.5 + Math.cos(worldZ / 4) * 1.5) + 2;
                     
                     for (let y = height; y >= height - 1; y--) {
-                        const bx = worldX * blockSize;
-                        const by = y * blockSize;
-                        const bz = worldZ * blockSize;
-                        
+                        const bx = worldX * blockSize; const by = y * blockSize; const bz = worldZ * blockSize;
                         const blockId = `${bx.toFixed(1)}_${by.toFixed(1)}_${bz.toFixed(1)}`;
                         if (minedBlocks.has(blockId)) continue;
 
-                        let mat;
-                        if (y === height) {
-                            mat = [ new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassTop }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }) ];
-                        } else {
-                            mat = new THREE.MeshStandardMaterial({ map: texStone });
-                        }
+                        let mat = (y === height) ? [ new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassTop }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }), new THREE.MeshStandardMaterial({ map: texGrassSide }) ] : new THREE.MeshStandardMaterial({ map: texStone });
 
                         const block = new THREE.Mesh(geometry, mat);
-                        block.position.set(bx, by, bz);
-                        block.receiveShadow = false;
-                        block.castShadow = false; 
+                        block.position.set(bx, by, bz); block.receiveShadow = false; block.castShadow = false; 
                         chunkGroup.add(block);
 
-                        if (y === height) {
-                            allBlocks.push({ mesh: block, x: bx, y: by, z: bz, id: blockId });
-                        }
+                        if (y === height) allBlocks.push({ mesh: block, x: bx, y: by, z: bz, id: blockId });
                     }
 
-                    // SPAWN HOUSES RANDOMLY (5% chance per block)
-                    if (Math.random() < 0.02) {
-                        const house = buildHouse(worldX * blockSize, worldZ * blockSize);
-                        chunkGroup.add(house);
-                    }
-
-                    // SPAWN ENEMIES (ZOMBIES) RANDOMLY (8% chance)
+                    // Spawn Trees
                     if (Math.random() < 0.05) {
-                        const enemy = buildHumanoid(0x388e3c, faceTexZombie); // Green zombie
+                        const tree = new THREE.Group();
+                        const trunk = new THREE.Mesh(new THREE.BoxGeometry(blockSize, blockSize*3, blockSize), new THREE.MeshStandardMaterial({ map: texWood }));
+                        trunk.position.set(worldX * blockSize, height * blockSize + blockSize, worldZ * blockSize); tree.add(trunk);
+                        const leaves = new THREE.Mesh(new THREE.BoxGeometry(blockSize*2.5, blockSize*2.5, blockSize*2.5), new THREE.MeshStandardMaterial({ map: texLeaves }));
+                        leaves.position.set(worldX * blockSize, height * blockSize + blockSize*3, worldZ * blockSize); tree.add(leaves);
+                        chunkGroup.add(tree);
+                    }
+
+                    // Spawn Houses
+                    if (Math.random() < 0.01) chunkGroup.add(buildHouse(worldX * blockSize, worldZ * blockSize));
+
+                    // Spawn Enemies (Zombies/Wolves)
+                    if (Math.random() < 0.03) {
+                        const enemy = buildHumanoid(0x388e3c, faceTexZombie); 
                         enemy.position.set(worldX * blockSize, height * blockSize + 3, worldZ * blockSize);
-                        chunkGroup.add(enemy);
-                        enemies.push({ mesh: enemy, x: enemy.position.x, z: enemy.position.z, health: 100 });
+                        chunkGroup.add(enemy); enemies.push({ mesh: enemy, x: enemy.position.x, z: enemy.position.z, type: 'zombie' });
+                    }
+                    
+                    // Spawn Animals (Deer)
+                    if (Math.random() < 0.03) {
+                        const deer = buildDeer(worldX * blockSize, height * blockSize + 2, worldZ * blockSize);
+                        chunkGroup.add(deer); animals.push({ mesh: deer, x: deer.position.x, z: deer.position.z });
                     }
                 }
             }
-
             scene.add(chunkGroup);
             activeChunks[`${cx},${cz}`] = chunkGroup;
         }
@@ -269,142 +271,160 @@
 
             for (let x = currentCX - RENDER_DISTANCE; x <= currentCX + RENDER_DISTANCE; x++) {
                 for (let z = currentCZ - RENDER_DISTANCE; z <= currentCZ + RENDER_DISTANCE; z++) {
-                    const key = `${x},${z}`;
-                    if (!activeChunks[key]) generateChunk(x, z);
+                    if (!activeChunks[`${x},${z}`]) generateChunk(x, z);
                 }
             }
-
             for (let key in activeChunks) {
                 const [cx, cz] = key.split(',').map(Number);
                 if (Math.abs(cx - currentCX) > RENDER_DISTANCE + 1 || Math.abs(cz - currentCZ) > RENDER_DISTANCE + 1) {
-                    scene.remove(activeChunks[key]);
-                    delete activeChunks[key];
-                    
-                    // Clean up blocks and enemies in unloaded chunks
+                    scene.remove(activeChunks[key]); delete activeChunks[key];
                     allBlocks = allBlocks.filter(b => Math.abs(b.x/ (CHUNK_SIZE*blockSize) - currentCX) <= RENDER_DISTANCE + 1);
                     enemies = enemies.filter(e => Math.abs(e.x/ (CHUNK_SIZE*blockSize) - currentCX) <= RENDER_DISTANCE + 1);
+                    animals = animals.filter(a => Math.abs(a.x/ (CHUNK_SIZE*blockSize) - currentCX) <= RENDER_DISTANCE + 1);
                 }
             }
         }
 
         function buildHouse(x, z) {
-            const houseGroup = new THREE.Group();
-            const houseMat = new THREE.MeshStandardMaterial({ map: texWood });
-            const base = new THREE.Mesh(new THREE.BoxGeometry(blockSize*4, blockSize*3, blockSize*4), houseMat);
-            base.position.set(x, blockSize*1.5, z); base.castShadow = true; base.receiveShadow = true; houseGroup.add(base);
-            
+            const group = new THREE.Group();
+            const base = new THREE.Mesh(new THREE.BoxGeometry(blockSize*4, blockSize*3, blockSize*4), new THREE.MeshStandardMaterial({ map: texWood }));
+            base.position.set(x, blockSize*1.5, z); group.add(base);
             const roof = new THREE.Mesh(new THREE.BoxGeometry(blockSize*5, blockSize*1, blockSize*5), new THREE.MeshStandardMaterial({ map: texStone }));
-            roof.position.set(x, blockSize*3.5, z); roof.castShadow = true; houseGroup.add(roof);
-
+            roof.position.set(x, blockSize*3.5, z); group.add(roof);
             const door = new THREE.Mesh(new THREE.BoxGeometry(blockSize*1.5, blockSize*2, 0.5), new THREE.MeshBasicMaterial({ color: 0x4caf50 }));
-            door.position.set(x, blockSize*1, z + blockSize*2); houseGroup.add(door);
-            
-            return houseGroup;
+            door.position.set(x, blockSize*1, z + blockSize*2); group.add(door);
+            return group;
         }
 
         function buildHumanoid(shirtColor, faceTexture) {
             const group = new THREE.Group();
             const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccbc });
-            const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor });
-            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-
-            const body = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.6, blockSize*0.8, blockSize*0.4), shirtMat);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.6, blockSize*0.8, blockSize*0.4), new THREE.MeshStandardMaterial({ color: shirtColor }));
             body.position.y = blockSize*0.5; body.castShadow = true; group.add(body);
-            
-            const headMats = [
-                new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }),
-                new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }),
-                new THREE.MeshStandardMaterial({ map: faceTexture }), new THREE.MeshStandardMaterial({ color: 0x3E2723 })
-            ];
+            const headMats = [ new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ map: faceTexture }), new THREE.MeshStandardMaterial({ color: 0x3E2723 }) ];
             const head = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.5, blockSize*0.5, blockSize*0.5), headMats);
-            head.position.y = blockSize*1.15; head.castShadow = true; group.add(head);
-
-            const armL = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.25, blockSize*0.8, blockSize*0.25), skinMat);
-            armL.position.set(-blockSize*0.45, blockSize*0.5, 0); group.add(armL);
+            head.position.y = blockSize*1.15; group.add(head);
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.25, blockSize*0.8, blockSize*0.25), skinMat); armL.position.set(-blockSize*0.45, blockSize*0.5, 0); group.add(armL);
             const armR = armL.clone(); armR.position.x = blockSize*0.45; group.add(armR);
-
-            const legL = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.3, blockSize*0.8, blockSize*0.3), pantsMat);
-            legL.position.set(-blockSize*0.2, -blockSize*0.4, 0); group.add(legL);
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.3, blockSize*0.8, blockSize*0.3), new THREE.MeshStandardMaterial({ color: 0x111111 })); legL.position.set(-blockSize*0.2, -blockSize*0.4, 0); group.add(legL);
             const legR = legL.clone(); legR.position.x = blockSize*0.2; group.add(legR);
-
             group.userData = { armL, armR, legL, legR };
+            return group;
+        }
+
+        function buildDeer(x, y, z) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
+            body.position.y = 1.5; group.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
+            head.position.set(0, 2.5, 2); group.add(head);
+            group.position.set(x, y, z);
             return group;
         }
 
         function createPlayer() {
             player = buildHumanoid(0x1976d2, faceTexSteve); 
-            player.position.set(0, 15, 20); 
-            scene.add(player);
+            player.position.set(0, 15, 20); scene.add(player);
         }
 
-        function createTarget(x, z, yHeight) {
-            targetNPC = buildHumanoid(0xd32f2f, faceTexTarget); 
-            targetNPC.position.set(x * blockSize, yHeight * blockSize + 1, z * blockSize); 
-            scene.add(targetNPC);
+        window.jump = function() { if(isGrounded && !isGameOver) { velocityY = jumpForce; isGrounded = false; } }
+        window.toggleShop = function() { document.getElementById('shopModal').style.display = document.getElementById('shopModal').style.display === 'flex' ? 'none' : 'flex'; }
+        
+        window.buyItem = function(item) {
+            if (item === 'food' && stats.money >= 15) { stats.money -= 15; stats.hunger = Math.min(100, stats.hunger + 40); }
+            else if (item === 'water' && stats.money >= 10) { stats.money -= 10; stats.thirst = Math.min(100, stats.thirst + 40); }
+            else if (item === 'potion' && stats.money >= 50) { stats.money -= 50; stats.hp = Math.min(100, stats.hp + 50); }
+            else { alert("Not enough money!"); return; }
+            updateUI();
         }
-
-        window.jump = function() { if(isGrounded) { velocityY = jumpForce; isGrounded = false; } }
 
         window.mineBlock = function() {
+            if(isGameOver) return;
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); 
             const intersects = raycaster.intersectObjects(allBlocks.map(b => b.mesh));
             
             if (intersects.length > 0) {
                 const hitMesh = intersects[0].object;
                 const blockData = allBlocks.find(b => b.mesh === hitMesh);
-                
                 if(blockData) {
                     scene.remove(hitMesh);
                     minedBlocks.add(blockData.id); 
                     localStorage.setItem('minedBlocks', JSON.stringify([...minedBlocks])); 
                     allBlocks = allBlocks.filter(b => b.mesh !== hitMesh);
+                    stats.wood += 2; // GIVE WOOD
+                    updateUI();
                 }
+            } else {
+                // Check if near a tree to chop (simplified logic)
+                stats.wood += 1; updateUI(); 
             }
         }
 
-        function doAction() {
-            // Check distance to all enemies
-            let killedEnemy = false;
+        window.doAction = function() {
+            if(isGameOver) return;
+            let hitSomething = false;
+            
+            // Attack Enemies
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
-                const dist = Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z);
-                
-                if (dist < 6) {
-                    scene.remove(enemy.mesh);
-                    enemies.splice(i, 1);
-                    money += 100;
-                    document.getElementById('money').innerText = "$" + money;
-                    document.getElementById('missionText').innerText = "Zombie killed! +$100";
-                    killedEnemy = true;
-                    break;
+                if (Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z) < 6) {
+                    scene.remove(enemy.mesh); enemies.splice(i, 1);
+                    stats.money += 50; hitSomething = true; break;
                 }
             }
-
-            if (killedEnemy) return;
-
-            // Check main target
-            if(targetNPC) {
-                const distToTarget = Math.hypot(player.position.x - targetNPC.position.x, player.position.z - targetNPC.position.z);
-                if (distToTarget < 6 && !missionComplete) {
-                    scene.remove(targetNPC);
-                    money += 500;
-                    document.getElementById('money').innerText = "$" + money;
-                    document.getElementById('missionText').innerText = "Main Target Eliminated! +$500";
-                    document.getElementById('missionText').style.color = "#4caf50";
-                    missionComplete = true;
-                    return;
+            
+            // Hunt Animals
+            if(!hitSomething) {
+                for (let i = animals.length - 1; i >= 0; i--) {
+                    const animal = animals[i];
+                    if (Math.hypot(player.position.x - animal.mesh.position.x, player.position.z - animal.mesh.position.z) < 6) {
+                        scene.remove(animal.mesh); animals.splice(i, 1);
+                        stats.money += 20; stats.hunger = Math.min(100, stats.hunger + 20); hitSomething = true; break;
+                    }
                 }
             }
-
-            alert("Walk closer to a Zombie (Green) or the Target (Red) to kill them!");
+            
+            if(hitSomething) updateUI();
+            else alert("Nothing in range to attack!");
         }
+
+        function updateUI() {
+            document.getElementById('hpFill').style.width = stats.hp + '%';
+            document.getElementById('hungerFill').style.width = stats.hunger + '%';
+            document.getElementById('thirstFill').style.width = stats.thirst + '%';
+            document.getElementById('woodAmt').innerText = stats.wood;
+            document.getElementById('money').innerText = "$" + stats.money;
+        }
+
+        window.restartGame = function() { location.reload(); }
 
         const clock = new THREE.Clock();
         let walkCycle = 0;
 
         function animate() {
+            if(isGameOver) return;
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
+
+            // SURVIVAL DRAIN
+            stats.hunger -= 1 * delta;
+            stats.thirst -= 1.5 * delta;
+            if (stats.hunger <= 0) stats.hp -= 5 * delta;
+            if (stats.thirst <= 0) stats.hp -= 5 * delta;
+            
+            if (stats.hp <= 0) { stats.hp = 0; isGameOver = true; document.getElementById('gameOver').style.display = 'flex'; }
+            updateUI();
+
+            // WEATHER SYSTEM
+            weatherTimer += delta;
+            if (weatherTimer > 30) {
+                weatherTimer = 0;
+                const r = Math.random();
+                if (r < 0.4) { currentWeather = 'Clear'; scene.background.set(0x78A7FF); scene.fog.color.set(0x78A7FF); document.getElementById('weatherIcon').innerText = "☀️"; }
+                else if (r < 0.7) { currentWeather = 'Stormy'; scene.background.set(0x444444); scene.fog.color.set(0x444444); document.getElementById('weatherIcon').innerText = "🌧️"; }
+                else { currentWeather = 'Scorching'; scene.background.set(0xffaa00); scene.fog.color.set(0xffaa00); document.getElementById('weatherIcon').innerText = "🔥"; stats.thirst -= 10; }
+            }
+            if (currentWeather === 'Scorching') stats.thirst -= 2 * delta;
 
             updateChunks(player.position.x, player.position.z);
 
@@ -418,13 +438,9 @@
                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                 while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
                 playerAngle += angleDiff * 0.2;
-
-                let forwardX = Math.sin(playerAngle);
-                let forwardZ = Math.cos(playerAngle);
-                player.position.x += forwardX * moveSpeed;
-                player.position.z += forwardZ * moveSpeed;
+                player.position.x += Math.sin(playerAngle) * moveSpeed;
+                player.position.z += Math.cos(playerAngle) * moveSpeed;
             }
-
             player.rotation.y = playerAngle;
 
             velocityY += gravity * delta;
@@ -437,16 +453,9 @@
                 }
             });
 
-            const playerHeightOffset = blockSize * 1.0; 
-            const targetGroundY = floorY + blockSize/2 + playerHeightOffset;
-
-            if (player.position.y <= targetGroundY) {
-                player.position.y = targetGroundY;
-                velocityY = 0;
-                isGrounded = true;
-            } else {
-                isGrounded = false;
-            }
+            const targetGroundY = floorY + blockSize/2 + (blockSize * 1.0);
+            if (player.position.y <= targetGroundY) { player.position.y = targetGroundY; velocityY = 0; isGrounded = true; } 
+            else { isGrounded = false; }
 
             if (isMoving && isGrounded) {
                 walkCycle += delta * 15;
@@ -455,31 +464,33 @@
                 player.userData.armL.rotation.x = -Math.sin(walkCycle) * 0.8;
                 player.userData.armR.rotation.x = Math.sin(walkCycle) * 0.8;
             } else {
-                player.userData.legL.rotation.x = 0;
-                player.userData.legR.rotation.x = 0;
-                player.userData.armL.rotation.x = 0;
-                player.userData.armR.rotation.x = 0;
+                player.userData.legL.rotation.x = 0; player.userData.legR.rotation.x = 0; player.userData.armL.rotation.x = 0; player.userData.armR.rotation.x = 0;
             }
 
             // ENEMY AI (Chase Player)
             enemies.forEach(enemy => {
-                const distToPlayer = Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z);
-                if (distToPlayer < 25 && distToPlayer > 4) {
+                const dist = Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z);
+                if (dist < 30 && dist > 4) {
                     const angle = Math.atan2(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z);
-                    enemy.mesh.position.x += Math.sin(angle) * 8 * delta;
-                    enemy.mesh.position.z += Math.cos(angle) * 8 * delta;
-                    enemy.mesh.rotation.y = angle;
-                    
-                    // Walk animation for enemy
-                    enemy.mesh.userData.legL.rotation.x = Math.sin(Date.now() * 0.01) * 0.8;
-                    enemy.mesh.userData.legR.rotation.x = -Math.sin(Date.now() * 0.01) * 0.8;
-                } else {
-                    enemy.mesh.userData.legL.rotation.x = 0;
-                    enemy.mesh.userData.legR.rotation.x = 0;
+                    enemy.mesh.position.x += Math.sin(angle) * 6 * delta;
+                    enemy.mesh.position.z += Math.cos(angle) * 6 * delta;
+                }
+                if (dist < 5) { // Damage player
+                    stats.hp -= 15 * delta; 
                 }
             });
 
-            // CLOUD FOLLOW LOGIC (To create endless sky)
+            // ANIMAL AI (Run away)
+            animals.forEach(animal => {
+                const dist = Math.hypot(player.position.x - animal.mesh.position.x, player.position.z - animal.mesh.position.z);
+                if (dist < 15) {
+                    const angle = Math.atan2(animal.mesh.position.x - player.position.x, animal.mesh.position.z - player.position.z);
+                    animal.mesh.position.x += Math.sin(angle) * 10 * delta;
+                    animal.mesh.position.z += Math.cos(angle) * 10 * delta;
+                }
+            });
+
+            // Cloud follow
             clouds.forEach(c => {
                 if (c.position.z > player.position.z + 200) c.position.z -= 400;
                 if (c.position.z < player.position.z - 200) c.position.z += 400;
@@ -488,11 +499,9 @@
             });
 
             const camOffset = { x: -Math.sin(playerAngle) * 25, y: 12, z: -Math.cos(playerAngle) * 25 };
-            
             camera.position.x += (player.position.x + camOffset.x - camera.position.x) * 0.15;
             camera.position.y += (player.position.y + camOffset.y - camera.position.y) * 0.15;
             camera.position.z += (player.position.z + camOffset.z - camera.position.z) * 0.15;
-            
             camera.lookAt(player.position.x, player.position.y + 4, player.position.z);
 
             renderer.render(scene, camera);
