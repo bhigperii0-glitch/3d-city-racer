@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GTA Minecraft: Survival</title>
+    <title>GTA Minecraft: Wilderness Survival</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin: 0; overflow: hidden; background-color: #78A7FF; font-family: 'Press Start 2P', monospace; touch-action: none; user-select: none; }
@@ -68,7 +68,7 @@
         <span id="weatherIcon">☀️</span>
     </div>
 
-    <div id="missionText">Survive, gather wood, and fight beasts!</div>
+    <div id="missionText">Survive. Watch out for Wolves 🐺 and Bears 🐻!</div>
 
     <!-- JOYSTICK -->
     <div id="joystick-container"><div id="joystick-knob"></div></div>
@@ -107,7 +107,6 @@
         let stats = { hp: 100, hunger: 100, thirst: 100, money: 0, wood: 0 };
         let isGameOver = false;
         
-        let targetNPC, houseDoor;
         let isGrounded = false;
         let velocityY = 0;
         const gravity = -35;
@@ -119,7 +118,7 @@
         let activeChunks = {};
         let allBlocks = []; 
         let clouds = [];
-        let enemies = []; // Zombies & Wolves
+        let enemies = []; // Wolves & Bears
         let animals = []; // Deer (run away)
 
         let minedBlocks = new Set(JSON.parse(localStorage.getItem('minedBlocks')) || []);
@@ -139,13 +138,12 @@
             const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
             return tex;
         }
-        function createFaceTexture(skinColor, hairColor, isZombie = false) {
+        function createFaceTexture(skinColor, hairColor) {
             const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d'); 
             ctx.fillStyle = skinColor; ctx.fillRect(0, 0, 64, 64);
             ctx.fillStyle = hairColor; ctx.fillRect(0, 0, 64, 20); ctx.fillRect(0, 20, 12, 15); ctx.fillRect(52, 20, 12, 15); 
-            if (isZombie) { ctx.fillStyle = '#111'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12); } 
-            else { ctx.fillStyle = '#fff'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12); ctx.fillStyle = '#000'; ctx.fillRect(18, 32, 4, 4); ctx.fillRect(42, 32, 4, 4); }
+            ctx.fillStyle = '#fff'; ctx.fillRect(14, 28, 12, 12); ctx.fillRect(38, 28, 12, 12); ctx.fillStyle = '#000'; ctx.fillRect(18, 32, 4, 4); ctx.fillRect(42, 32, 4, 4);
             ctx.fillStyle = '#d7a391'; ctx.fillRect(30, 36, 4, 6); ctx.fillStyle = '#a33'; ctx.fillRect(24, 48, 16, 4);
             const tex = new THREE.CanvasTexture(canvas); tex.magFilter = THREE.NearestFilter; return tex;
         }
@@ -156,8 +154,6 @@
         const texWood = createMCTexture('#5D4037', '#3E2723');
         const texLeaves = createMCTexture('#4CAF50', '#2E7D32');
         const faceTexSteve = createFaceTexture('#ffccbc', '#3E2723');
-        const faceTexTarget = createFaceTexture('#8d5524', '#000000');
-        const faceTexZombie = createFaceTexture('#4CAF50', '#2E7D32', true);
 
         window.onload = function() {
             scene = new THREE.Scene();
@@ -178,12 +174,20 @@
             dirLight.shadow.mapSize.width = 512; dirLight.shadow.mapSize.height = 512;
             scene.add(dirLight);
 
-            // Clouds
-            const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
-            for(let i=0; i<60; i++) {
-                const cloud = new THREE.Mesh(new THREE.BoxGeometry(20 + Math.random()*30, 4, 20 + Math.random()*30), cloudMat);
-                cloud.position.set(Math.random()*400 - 200, 80 + Math.random()*20, Math.random()*400 - 200);
-                scene.add(cloud); clouds.push(cloud);
+            // MASSIVE CLOUD SYSTEM
+            const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+            for(let i=0; i<150; i++) {
+                // Group clouds to look fluffy
+                const cloudGroup = new THREE.Group();
+                const numBlocks = 3 + Math.floor(Math.random() * 4);
+                for(let b=0; b<numBlocks; b++) {
+                    const block = new THREE.Mesh(new THREE.BoxGeometry(20 + Math.random()*20, 4, 20 + Math.random()*20), cloudMat);
+                    block.position.set(Math.random()*20 - 10, Math.random()*4, Math.random()*20 - 10);
+                    cloudGroup.add(block);
+                }
+                cloudGroup.position.set(Math.random()*600 - 300, 80 + Math.random()*40, Math.random()*600 - 300);
+                scene.add(cloudGroup); 
+                clouds.push(cloudGroup);
             }
 
             raycaster = new THREE.Raycaster(); raycaster.far = 20; 
@@ -235,7 +239,7 @@
                     }
 
                     // Spawn Trees
-                    if (Math.random() < 0.05) {
+                    if (Math.random() < 0.04) {
                         const tree = new THREE.Group();
                         const trunk = new THREE.Mesh(new THREE.BoxGeometry(blockSize, blockSize*3, blockSize), new THREE.MeshStandardMaterial({ map: texWood }));
                         trunk.position.set(worldX * blockSize, height * blockSize + blockSize, worldZ * blockSize); tree.add(trunk);
@@ -244,19 +248,19 @@
                         chunkGroup.add(tree);
                     }
 
-                    // Spawn Houses
-                    if (Math.random() < 0.01) chunkGroup.add(buildHouse(worldX * blockSize, worldZ * blockSize));
-
-                    // Spawn Enemies (Zombies/Wolves)
-                    if (Math.random() < 0.03) {
-                        const enemy = buildHumanoid(0x388e3c, faceTexZombie); 
+                    // Spawn Enemies (REDUCED SPAWN RATE)
+                    if (Math.random() < 0.01) {
+                        const isBear = Math.random() > 0.5;
+                        const enemy = isBear ? buildBear() : buildWolf(); 
                         enemy.position.set(worldX * blockSize, height * blockSize + 3, worldZ * blockSize);
-                        chunkGroup.add(enemy); enemies.push({ mesh: enemy, x: enemy.position.x, z: enemy.position.z, type: 'zombie' });
+                        chunkGroup.add(enemy); 
+                        enemies.push({ mesh: enemy, x: enemy.position.x, z: enemy.position.z, type: isBear ? 'bear' : 'wolf', damage: isBear ? 10 : 5 });
                     }
                     
                     // Spawn Animals (Deer)
-                    if (Math.random() < 0.03) {
-                        const deer = buildDeer(worldX * blockSize, height * blockSize + 2, worldZ * blockSize);
+                    if (Math.random() < 0.02) {
+                        const deer = buildDeer();
+                        deer.position.set(worldX * blockSize, height * blockSize + 2, worldZ * blockSize);
                         chunkGroup.add(deer); animals.push({ mesh: deer, x: deer.position.x, z: deer.position.z });
                     }
                 }
@@ -285,22 +289,12 @@
             }
         }
 
-        function buildHouse(x, z) {
-            const group = new THREE.Group();
-            const base = new THREE.Mesh(new THREE.BoxGeometry(blockSize*4, blockSize*3, blockSize*4), new THREE.MeshStandardMaterial({ map: texWood }));
-            base.position.set(x, blockSize*1.5, z); group.add(base);
-            const roof = new THREE.Mesh(new THREE.BoxGeometry(blockSize*5, blockSize*1, blockSize*5), new THREE.MeshStandardMaterial({ map: texStone }));
-            roof.position.set(x, blockSize*3.5, z); group.add(roof);
-            const door = new THREE.Mesh(new THREE.BoxGeometry(blockSize*1.5, blockSize*2, 0.5), new THREE.MeshBasicMaterial({ color: 0x4caf50 }));
-            door.position.set(x, blockSize*1, z + blockSize*2); group.add(door);
-            return group;
-        }
-
+        // --- MODELS ---
         function buildHumanoid(shirtColor, faceTexture) {
             const group = new THREE.Group();
             const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccbc });
             const body = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.6, blockSize*0.8, blockSize*0.4), new THREE.MeshStandardMaterial({ color: shirtColor }));
-            body.position.y = blockSize*0.5; body.castShadow = true; group.add(body);
+            body.position.y = blockSize*0.5; group.add(body);
             const headMats = [ new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ color: 0xffccbc }), new THREE.MeshStandardMaterial({ map: faceTexture }), new THREE.MeshStandardMaterial({ color: 0x3E2723 }) ];
             const head = new THREE.Mesh(new THREE.BoxGeometry(blockSize*0.5, blockSize*0.5, blockSize*0.5), headMats);
             head.position.y = blockSize*1.15; group.add(head);
@@ -312,13 +306,28 @@
             return group;
         }
 
-        function buildDeer(x, y, z) {
+        function buildWolf() {
             const group = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
-            body.position.y = 1.5; group.add(body);
-            const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
-            head.position.set(0, 2.5, 2); group.add(head);
-            group.position.set(x, y, z);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x9e9e9e }); // Grey wolf
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), mat); body.position.y = 1.5; group.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), mat); head.position.set(0, 2.5, 2); group.add(head);
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 2), mat); tail.position.set(0, 2, -2.5); group.add(tail);
+            return group;
+        }
+
+        function buildBear() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x5d4037 }); // Brown bear
+            const body = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 5), mat); body.position.y = 2; group.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mat); head.position.set(0, 3.5, 3); group.add(head);
+            return group;
+        }
+
+        function buildDeer() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x8d6e63 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 4), mat); body.position.y = 1.5; group.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 2), mat); head.position.set(0, 2.5, 2); group.add(head);
             return group;
         }
 
@@ -351,12 +360,9 @@
                     minedBlocks.add(blockData.id); 
                     localStorage.setItem('minedBlocks', JSON.stringify([...minedBlocks])); 
                     allBlocks = allBlocks.filter(b => b.mesh !== hitMesh);
-                    stats.wood += 2; // GIVE WOOD
+                    stats.wood += 2; 
                     updateUI();
                 }
-            } else {
-                // Check if near a tree to chop (simplified logic)
-                stats.wood += 1; updateUI(); 
             }
         }
 
@@ -364,12 +370,14 @@
             if(isGameOver) return;
             let hitSomething = false;
             
-            // Attack Enemies
+            // Attack Enemies (Wolves/Bears)
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
-                if (Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z) < 6) {
-                    scene.remove(enemy.mesh); enemies.splice(i, 1);
-                    stats.money += 50; hitSomething = true; break;
+                if (Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z) < 8) {
+                    scene.remove(enemy.mesh); 
+                    stats.money += (enemy.type === 'bear' ? 100 : 50); 
+                    enemies.splice(i, 1);
+                    hitSomething = true; break;
                 }
             }
             
@@ -377,7 +385,7 @@
             if(!hitSomething) {
                 for (let i = animals.length - 1; i >= 0; i--) {
                     const animal = animals[i];
-                    if (Math.hypot(player.position.x - animal.mesh.position.x, player.position.z - animal.mesh.position.z) < 6) {
+                    if (Math.hypot(player.position.x - animal.mesh.position.x, player.position.z - animal.mesh.position.z) < 8) {
                         scene.remove(animal.mesh); animals.splice(i, 1);
                         stats.money += 20; stats.hunger = Math.min(100, stats.hunger + 20); hitSomething = true; break;
                     }
@@ -406,25 +414,27 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
-            // SURVIVAL DRAIN
-            stats.hunger -= 1 * delta;
-            stats.thirst -= 1.5 * delta;
-            if (stats.hunger <= 0) stats.hp -= 5 * delta;
-            if (stats.thirst <= 0) stats.hp -= 5 * delta;
+            // BALANCED SURVIVAL DRAIN
+            stats.hunger -= 0.5 * delta;
+            stats.thirst -= 0.8 * delta;
+            if (stats.hunger <= 0) stats.hp -= 2 * delta;
+            if (stats.thirst <= 0) stats.hp -= 2 * delta;
             
             if (stats.hp <= 0) { stats.hp = 0; isGameOver = true; document.getElementById('gameOver').style.display = 'flex'; }
             updateUI();
 
             // WEATHER SYSTEM
             weatherTimer += delta;
-            if (weatherTimer > 30) {
+            if (weatherTimer > 45) {
                 weatherTimer = 0;
                 const r = Math.random();
-                if (r < 0.4) { currentWeather = 'Clear'; scene.background.set(0x78A7FF); scene.fog.color.set(0x78A7FF); document.getElementById('weatherIcon').innerText = "☀️"; }
-                else if (r < 0.7) { currentWeather = 'Stormy'; scene.background.set(0x444444); scene.fog.color.set(0x444444); document.getElementById('weatherIcon').innerText = "🌧️"; }
-                else { currentWeather = 'Scorching'; scene.background.set(0xffaa00); scene.fog.color.set(0xffaa00); document.getElementById('weatherIcon').innerText = "🔥"; stats.thirst -= 10; }
+                if (r < 0.5) { currentWeather = 'Clear'; scene.background.set(0x78A7FF); scene.fog.color.set(0x78A7FF); document.getElementById('weatherIcon').innerText = "☀️"; }
+                else if (r < 0.8) { currentWeather = 'Stormy'; scene.background.set(0x444444); scene.fog.color.set(0x444444); document.getElementById('weatherIcon').innerText = "🌧️"; }
+                else { currentWeather = 'Scorching'; scene.background.set(0xffaa00); scene.fog.color.set(0xffaa00); document.getElementById('weatherIcon').innerText = "🔥"; }
             }
-            if (currentWeather === 'Scorching') stats.thirst -= 2 * delta;
+            if (currentWeather === 'Scorching') stats.thirst -= 1 * delta;
+            if (currentWeather === 'Stormy') { clouds.forEach(c => c.children.forEach(b => b.material.color.set(0x444444))); }
+            else { clouds.forEach(c => c.children.forEach(b => b.material.color.set(0xffffff))); }
 
             updateChunks(player.position.x, player.position.z);
 
@@ -467,16 +477,19 @@
                 player.userData.legL.rotation.x = 0; player.userData.legR.rotation.x = 0; player.userData.armL.rotation.x = 0; player.userData.armR.rotation.x = 0;
             }
 
-            // ENEMY AI (Chase Player)
+            // BALANCED ENEMY AI (Slower, less damage)
             enemies.forEach(enemy => {
                 const dist = Math.hypot(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z);
-                if (dist < 30 && dist > 4) {
+                if (dist < 20 && dist > 5) {
+                    const speed = enemy.type === 'bear' ? 2.5 : 4; // Bears are slow, Wolves are fast
                     const angle = Math.atan2(player.position.x - enemy.mesh.position.x, player.position.z - enemy.mesh.position.z);
-                    enemy.mesh.position.x += Math.sin(angle) * 6 * delta;
-                    enemy.mesh.position.z += Math.cos(angle) * 6 * delta;
+                    enemy.mesh.position.x += Math.sin(angle) * speed * delta;
+                    enemy.mesh.position.z += Math.cos(angle) * speed * delta;
+                    enemy.mesh.lookAt(player.position.x, enemy.mesh.position.y, player.position.z);
                 }
-                if (dist < 5) { // Damage player
-                    stats.hp -= 15 * delta; 
+                if (dist < 5) { 
+                    stats.hp -= enemy.damage * delta; 
+                    document.getElementById('missionText').innerText = enemy.type === 'bear' ? "🐻 A Bear is attacking!" : "🐺 A Wolf is attacking!";
                 }
             });
 
@@ -485,17 +498,19 @@
                 const dist = Math.hypot(player.position.x - animal.mesh.position.x, player.position.z - animal.mesh.position.z);
                 if (dist < 15) {
                     const angle = Math.atan2(animal.mesh.position.x - player.position.x, animal.mesh.position.z - player.position.z);
-                    animal.mesh.position.x += Math.sin(angle) * 10 * delta;
-                    animal.mesh.position.z += Math.cos(angle) * 10 * delta;
+                    animal.mesh.position.x += Math.sin(angle) * 8 * delta;
+                    animal.mesh.position.z += Math.cos(angle) * 8 * delta;
+                    animal.mesh.lookAt(animal.mesh.position.x + Math.sin(angle), animal.mesh.position.y, animal.mesh.position.z + Math.cos(angle));
                 }
             });
 
-            // Cloud follow
+            // Cloud follow & Drifting
             clouds.forEach(c => {
-                if (c.position.z > player.position.z + 200) c.position.z -= 400;
-                if (c.position.z < player.position.z - 200) c.position.z += 400;
-                if (c.position.x > player.position.x + 200) c.position.x -= 400;
-                if (c.position.x < player.position.x - 200) c.position.x += 400;
+                c.position.x -= 2 * delta; // Wind drifting
+                if (c.position.z > player.position.z + 250) c.position.z -= 500;
+                if (c.position.z < player.position.z - 250) c.position.z += 500;
+                if (c.position.x > player.position.x + 250) c.position.x -= 500;
+                if (c.position.x < player.position.x - 250) c.position.x += 500;
             });
 
             const camOffset = { x: -Math.sin(playerAngle) * 25, y: 12, z: -Math.cos(playerAngle) * 25 };
